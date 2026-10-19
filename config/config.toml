@@ -1,0 +1,43 @@
+# folio configuration — ~/.config/folio/config.toml
+# Every setting is optional; this file lists the defaults.
+# `folio --init-config` writes this file and an example init.lua for you.
+
+[general]
+theme = "midnight"          # midnight | paper | nord | gruvbox
+page_mode = "normal"        # normal | dark (hue-preserving invert) | custom (theme page_fg/page_bg)
+statusbar = true
+smooth_scroll = true
+scroll_step = 70            # j/k distance, in screen points
+zoom_step = 1.15
+page_gap = 14
+auto_reload = true          # reload when the file changes (great with latexmk -pvc)
+restore_position = true
+render_threads = 2
+render_oversample = 1.0     # >1 renders sharper than the screen (costs memory)
+hint_chars = "asdfghjklqwertyuiop"
+key_timeout_ms = 600        # wait this long to disambiguate e.g. `g` from `gg`
+ui_font_size = 14
+# ui_font = "/usr/share/fonts/inter/Inter-Regular.otf"
+
+# Override any theme color (#rrggbb or #rrggbbaa) on top of the preset.
+[theme]
+# accent = "#7aa2ff"
+# bg = "#121419"
+# page_bg = "#1b1e27"       # used by page_mode = "custom"/"dark"
+# page_fg = "#d5d9e3"
+# radius = 10
+# [theme.highlight]
+# yellow = "#ffd04d68"
+# red = "#ff5c5c60"
+
+# Key bindings: "keys" = "command [args]". An empty string unbinds a default.
+# Keys use vim notation: gg, <C-d>, <A-x>, <S-Tab>, <Space>, <F5>, <lt> for '<'.
+# `{char}` in a command takes the next typed key as its argument.
+[keys.normal]
+# "<Space>t" = "toc"
+# "gz" = "zoom 150"
+# "q" = "quit"
+# "s" = ""                   # unbind smart_jump
+
+[keys.visual]
+# "<C-h>" = "highlight pink"

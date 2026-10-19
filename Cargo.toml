@@ -1,0 +1,30 @@
+[package]
+name = "folio"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+anyhow = "1.0.104"
+blake3 = "1.8.7"
+cairo-rs = { version = "0.22.9", features = ["png"] }
+crossbeam-channel = "0.5.17"
+directories = "6.0.0"
+eframe = { version = "0.37.0", default-features = false, features = ["clipboard", "default_fonts", "glow", "wayland", "x11", "system_fonts"] }
+glib = "0.22.10"
+mlua = { version = "0.12.2", features = ["lua54", "vendored"] }
+nucleo-matcher = "0.3.1"
+poppler-rs = "0.26.0"
+regex = "1.13.1"
+serde = { version = "1.0.229", features = ["derive"] }
+serde_json = "1.0.154"
+toml = "1.1.8"
+
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 3
+
+[profile.release]
+lto = "thin"
+codegen-units = 4
