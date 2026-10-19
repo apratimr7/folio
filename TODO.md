@@ -7,8 +7,11 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] **macOS: opening from Finder** doesn't load the file, because the Apple Event `odoc` isn't handled (winit
       doesn't expose it). Workaround: `open -a folio --args file.pdf`. Fix: a small `objc2` hook on
       `application:openURLs:`.
+- [ ] **CI hasn't run yet** (no remote). The Ubuntu job may need a newer poppler-glib than 24.04 ships.
 - [ ] **macOS build is untested on real hardware.** The code type-checks for `aarch64-apple-darwin`, and CI builds
       it, but nobody has run it yet. Check HiDPI (Retina) sharpness, Cmd-key bindings and font discovery.
+- [ ] After an auto-reload where the text reflowed (an edited LaTeX source), saved highlights keep their old
+      positions and char offsets. Re-anchor them by searching for their text near the old place.
 - [ ] Selections can't span pages (visual mode stays on the page where it started).
 - [ ] Smart references are heuristic. Known gaps: author–year citations (`Smith et al. 2020`), equation numbers
       that aren't at the end of their text line, two-column layouts where poppler merges lines from both columns.

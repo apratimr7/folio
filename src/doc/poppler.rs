@@ -170,7 +170,7 @@ impl Backend for PopplerDoc {
         }
         // The layout should be 1:1 with chars; guard against mismatches anyway.
         rects.resize(chars.len(), Rect::default());
-        PageText { chars, rects }
+        insert_gap_spaces(chars, rects)
     }
 
     fn links(&self, page: usize) -> Vec<Link> {
@@ -217,4 +217,28 @@ impl Backend for PopplerDoc {
             author: self.doc.author().map(|s| s.to_string()).filter(|s| !s.trim().is_empty()),
         }
     }
+}
+
+/// Poppler sometimes omits the space between words that are far apart on a line
+/// (running headers, table cells). Insert one wherever the horizontal gap is wide.
+fn insert_gap_spaces(chars: Vec<char>, rects: Vec<Rect>) -> PageText {
+    let mut out = PageText { chars: Vec::with_capacity(chars.len()), rects: Vec::with_capacity(rects.len()) };
+    for (i, (&c, &r)) in chars.iter().zip(&rects).enumerate() {
+        if i > 0 && !c.is_whitespace() && !chars[i - 1].is_whitespace() {
+            let p = rects[i - 1];
+            let h = p.height().max(r.height());
+            let same_line = (p.center_y() - r.center_y()).abs() < h * 0.5;
+            if same_line && r.x0 - p.x1 > h * 0.6 {
+                out.chars.push(' ');
+                out.rects.push(Rect::new(p.x1, p.y0.min(r.y0), r.x0, p.y1.max(r.y1)));
+            } else if !same_line && h > 0.0 && !p.is_empty() && !r.is_empty() {
+                // A new visual line without a newline in poppler's text.
+                out.chars.push('\n');
+                out.rects.push(Rect::default());
+            }
+        }
+        out.chars.push(c);
+        out.rects.push(r);
+    }
+    out
 }

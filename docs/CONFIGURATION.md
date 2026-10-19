@@ -95,6 +95,7 @@ Key notation (vim style):
 
 `{char}` in a command takes the next typed key as its argument, e.g. `"M" = "set_mark {char}"`.
 
-Digits are counts unless a binding starts with that digit; `0` only counts after another digit.
+A leading digit starts a count unless that digit alone is bound as a key. `0` never starts a count; once a count has
+started, every digit extends it, so `10j` works in every mode.
 
 All commands are listed in [COMMANDS.md](COMMANDS.md).

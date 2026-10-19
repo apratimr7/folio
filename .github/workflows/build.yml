@@ -22,10 +22,11 @@ jobs:
   macos:
     strategy:
       matrix:
-        os: [macos-14, macos-13] # arm64, x86_64
+        os: [macos-15, macos-15-intel] # arm64, x86_64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
+      - run: brew install poppler pkg-config dylibbundler
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test
       - run: BUNDLE=1 ./scripts/build-macos.sh

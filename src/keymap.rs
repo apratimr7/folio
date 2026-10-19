@@ -257,7 +257,7 @@ impl Dispatcher {
         if self.pending.is_empty() {
             if let Some(d) = chord.as_char().and_then(|c| c.to_digit(10)) {
                 let single = vec![chord.clone()];
-                if (d != 0 || self.count.is_some()) && !map.bindings.contains_key(&single) {
+                if self.count.is_some() || (d != 0 && !map.bindings.contains_key(&single)) {
                     self.count = Some(self.count.unwrap_or(0).saturating_mul(10).saturating_add(d));
                     self.since = Some(Instant::now());
                     return Outcome::Pending;
@@ -459,6 +459,16 @@ mod tests {
         assert_eq!(d.feed(&m, Chord::char('m')), Outcome::Pending);
         assert_eq!(d.feed(&m, Chord::char('a')), Outcome::Run { command: "set_mark a".into(), count: None });
         assert!(matches!(d.feed(&m, Chord::char('q')), Outcome::Unbound(_)));
+    }
+
+    #[test]
+    fn zero_extends_count_even_when_bound() {
+        let m = map(&[("0", "line_start"), ("j", "down")]);
+        let mut d = Dispatcher::default();
+        assert_eq!(d.feed(&m, Chord::char('0')), Outcome::Run { command: "line_start".into(), count: None });
+        d.feed(&m, Chord::char('1'));
+        d.feed(&m, Chord::char('0'));
+        assert_eq!(d.feed(&m, Chord::char('j')), Outcome::Run { command: "down".into(), count: Some(10) });
     }
 
     #[test]
