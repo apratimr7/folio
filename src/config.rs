@@ -102,16 +102,18 @@ pub struct Config {
     pub keys: BTreeMap<String, BTreeMap<String, String>>,
 }
 
-pub fn config_dir() -> PathBuf {
-    directories::ProjectDirs::from("", "", "folio")
-        .map(|d| d.config_dir().to_path_buf())
-        .unwrap_or_else(|| PathBuf::from(".folio"))
+fn home() -> PathBuf {
+    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
 }
 
+/// `$XDG_CONFIG_HOME/folio`, else `~/.config/folio` (on macOS too, like most keyboard-driven tools).
+pub fn config_dir() -> PathBuf {
+    std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".config")).join("folio")
+}
+
+/// `$XDG_DATA_HOME/folio`, else `~/.local/share/folio`.
 pub fn data_dir() -> PathBuf {
-    directories::ProjectDirs::from("", "", "folio")
-        .map(|d| d.data_dir().to_path_buf())
-        .unwrap_or_else(|| PathBuf::from(".folio"))
+    std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".local/share")).join("folio")
 }
 
 impl Config {

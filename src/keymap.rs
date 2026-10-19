@@ -100,14 +100,14 @@ pub fn parse_seq(s: &str) -> Result<Vec<Chord>, String> {
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
-        if c == '<' {
-            if let Some(len) = chars[i + 1..].iter().position(|&c| c == '>') {
-                let inner: String = chars[i + 1..i + 1 + len].iter().collect();
-                if !inner.is_empty() {
-                    out.push(parse_bracketed(&inner)?);
-                    i += len + 2;
-                    continue;
-                }
+        if c == '<'
+            && let Some(len) = chars[i + 1..].iter().position(|&c| c == '>')
+        {
+            let inner: String = chars[i + 1..i + 1 + len].iter().collect();
+            if !inner.is_empty() {
+                out.push(parse_bracketed(&inner)?);
+                i += len + 2;
+                continue;
             }
         }
         out.push(Chord::char(c));
@@ -206,7 +206,10 @@ impl ModeMap {
 pub enum Outcome {
     /// Waiting for more keys.
     Pending,
-    Run { command: String, count: Option<u32> },
+    Run {
+        command: String,
+        count: Option<u32>,
+    },
     Unbound(String),
 }
 

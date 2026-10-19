@@ -1,0 +1,35 @@
+name: build
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+      - run: sudo apt-get update && sudo apt-get install -y libpoppler-glib-dev libcairo2-dev libxkbcommon-dev libgl1-mesa-dev
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+      - run: cargo build --release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: folio-linux-x86_64
+          path: target/release/folio
+
+  macos:
+    strategy:
+      matrix:
+        os: [macos-14, macos-13] # arm64, x86_64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test
+      - run: BUNDLE=1 ./scripts/build-macos.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: folio-macos-${{ matrix.os }}
+          path: target/release/folio-*-macos-*.zip

@@ -7,12 +7,12 @@ use std::time::{Duration, Instant};
 use eframe::egui;
 
 use crate::commands::{self, BUILTINS};
-use crate::config::{self, Config, PageMode, Theme, THEME_NAMES};
+use crate::config::{self, Config, PageMode, THEME_NAMES, Theme};
 use crate::doc::{DocPos, LinkTarget, Rect};
 use crate::keymap::{self, Chord, Dispatcher, ModeMap, Outcome};
 use crate::refs::{self, RefKind};
 use crate::script::{Effect, FnId, Level, Script, Snapshot};
-use crate::session::{render_colors, HintAction, HintItem, HintMode, Hints, Peek, Ruler, Selection, Session};
+use crate::session::{HintAction, HintItem, HintMode, Hints, Peek, Ruler, Selection, Session, render_colors};
 use crate::store::{self, Bookmark, Global, Highlight};
 use crate::ui::picker::{PickData, PickItem, Picker, PickerEvent, PickerKind};
 use crate::ui::style;
@@ -200,10 +200,10 @@ impl App {
         match Script::new(move || ctx.request_repaint()) {
             Ok(s) => {
                 let init = config::config_dir().join("init.lua");
-                if init.exists() {
-                    if let Err(e) = s.run_file(&init) {
-                        notify_into(&mut self.toasts, format!("init.lua: {e}"), Level::Error);
-                    }
+                if init.exists()
+                    && let Err(e) = s.run_file(&init)
+                {
+                    notify_into(&mut self.toasts, format!("init.lua: {e}"), Level::Error);
                 }
                 self.script = Some(s);
                 self.process_effects();
@@ -355,7 +355,8 @@ impl App {
                 self.text_panel.visible = true;
             }
             Effect::Prompt { label, callback, initial } => {
-                self.prompt = Some(Prompt { label, text: initial, kind: PromptKind::Lua(callback), origin: None, history_idx: None });
+                self.prompt =
+                    Some(Prompt { label, text: initial, kind: PromptKind::Lua(callback), origin: None, history_idx: None });
             }
             Effect::Pick { title, items, callback } => {
                 let items = items.into_iter().enumerate().map(|(i, s)| PickItem::new(s, PickData::Lua(callback, i))).collect();
@@ -455,14 +456,14 @@ impl App {
             Outcome::Run { command, count } => self.run_line(&command, count),
             Outcome::Unbound(seq) => {
                 // Visual mode falls back to normal-mode bindings for navigation.
-                if self.mode == Mode::Visual {
-                    if let Ok(chords) = keymap::parse_seq(&seq) {
-                        let normal = self.keymaps.get("normal").cloned().unwrap_or_default();
-                        let mut d = Dispatcher::default();
-                        for c in chords {
-                            if let Outcome::Run { command, count } = d.feed(&normal, c) {
-                                self.run_line(&command, count);
-                            }
+                if self.mode == Mode::Visual
+                    && let Ok(chords) = keymap::parse_seq(&seq)
+                {
+                    let normal = self.keymaps.get("normal").cloned().unwrap_or_default();
+                    let mut d = Dispatcher::default();
+                    for c in chords {
+                        if let Outcome::Run { command, count } = d.feed(&normal, c) {
+                            self.run_line(&command, count);
                         }
                     }
                 }
@@ -567,8 +568,7 @@ impl App {
             }
             "theme" => {
                 if args.is_empty() {
-                    let items =
-                        THEME_NAMES.iter().map(|t| PickItem::new(*t, PickData::Theme(t.to_string()))).collect::<Vec<_>>();
+                    let items = THEME_NAMES.iter().map(|t| PickItem::new(*t, PickData::Theme(t.to_string()))).collect::<Vec<_>>();
                     self.picker = Some(Picker::new(PickerKind::Themes, "Theme", items));
                 } else {
                     self.set_theme(args);
@@ -608,6 +608,7 @@ impl App {
                 return;
             }
             "echo" => return self.notify(args.to_string()),
+            "open_url" => return open_external(args),
             "screenshot" => {
                 let path = if args.is_empty() { PathBuf::from("folio.png") } else { shellexpand(args) };
                 let cb = egui::ScreenshotCallback::new(move |img| {
@@ -720,15 +721,15 @@ impl App {
             "center_line" => {
                 if let Some(r) = d.ruler {
                     let t = d.page_text(r.page);
-                    if let Some(&(s, e)) = t.lines().get(r.line) {
-                        if let Some(rect) = t.span_rects(s, e).first() {
-                            d.view.goto(DocPos { page: r.page, y: rect.center_y() }, 0.5, animate);
-                        }
+                    if let Some(&(s, e)) = t.lines().get(r.line)
+                        && let Some(rect) = t.span_rects(s, e).first()
+                    {
+                        d.view.goto(DocPos { page: r.page, y: rect.center_y() }, 0.5, animate);
                     }
-                } else if let Some(h) = d.search.as_ref().and_then(|s| s.current.map(|c| s.hits[c].clone())) {
-                    if let Some(r) = h.rects.first() {
-                        d.view.goto(DocPos { page: h.page, y: r.center_y() }, 0.5, animate);
-                    }
+                } else if let Some(h) = d.search.as_ref().and_then(|s| s.current.map(|c| s.hits[c].clone()))
+                    && let Some(r) = h.rects.first()
+                {
+                    d.view.goto(DocPos { page: h.page, y: r.center_y() }, 0.5, animate);
                 }
             }
             "search" | "search_backward" => {
@@ -899,7 +900,8 @@ impl App {
                 if name == "annotate" && args.is_empty() {
                     return self.ask("note", PromptKind::Annotate, String::new());
                 }
-                let color = if name == "highlight" && !args.is_empty() { args.to_string() } else { self.theme.highlights[0].0.clone() };
+                let color =
+                    if name == "highlight" && !args.is_empty() { args.to_string() } else { self.theme.highlights[0].0.clone() };
                 let note = if name == "annotate" { args.to_string() } else { String::new() };
                 self.add_highlight(color, note);
             }
@@ -933,10 +935,8 @@ impl App {
             }
             _ => self.warn(format!("'{name}' is not available here")),
         }
-        if emit_selection {
-            if let Some(t) = self.doc.as_mut().and_then(|d| d.selection_text()) {
-                self.emit("selection", t);
-            }
+        if emit_selection && let Some(t) = self.doc.as_mut().and_then(|d| d.selection_text()) {
+            self.emit("selection", t);
         }
         if let Some(d) = &mut self.doc {
             d.dirty = true;
@@ -964,7 +964,16 @@ impl App {
         let (s, e) = sel.range();
         let text = t.span_text(s, e);
         let rects = t.span_rects(s, e).into_iter().map(Into::into).collect();
-        d.state.highlights.push(Highlight { page: sel.page, start: s, end: e, rects, text: text.clone(), color, note, created: store::now() });
+        d.state.highlights.push(Highlight {
+            page: sel.page,
+            start: s,
+            end: e,
+            rects,
+            text: text.clone(),
+            color,
+            note,
+            created: store::now(),
+        });
         d.state.highlights.sort_by_key(|h| (h.page, h.start));
         d.save_state();
         d.selection = None;
@@ -978,11 +987,11 @@ impl App {
             return true;
         }
         // Start from the current search match, the ruler line, or the first word on screen.
-        if let Some(h) = d.search.as_ref().and_then(|s| s.current.map(|c| s.hits[c].clone())) {
-            if h.rects.first().is_some_and(|r| d.view.is_visible(h.page, r.y0, r.y1)) {
-                d.selection = Some(Selection { page: h.page, anchor: h.start, cursor: h.end.saturating_sub(1) });
-                return true;
-            }
+        if let Some(h) = d.search.as_ref().and_then(|s| s.current.map(|c| s.hits[c].clone()))
+            && h.rects.first().is_some_and(|r| d.view.is_visible(h.page, r.y0, r.y1))
+        {
+            d.selection = Some(Selection { page: h.page, anchor: h.start, cursor: h.end.saturating_sub(1) });
+            return true;
         }
         if let Some(r) = d.ruler {
             let t = d.page_text(r.page);
@@ -1013,7 +1022,12 @@ impl App {
         for page in d.view.visible_pages() {
             for link in d.page_links(page).iter() {
                 if d.view.is_visible(page, link.rect.y0, link.rect.y1) || d.view.visible_pages().len() == 1 {
-                    items.push(HintItem { label: String::new(), page, rect: link.rect, action: HintAction::Link(link.target.clone()) });
+                    items.push(HintItem {
+                        label: String::new(),
+                        page,
+                        rect: link.rect,
+                        action: HintAction::Link(link.target.clone()),
+                    });
                 }
             }
         }
@@ -1045,7 +1059,7 @@ impl App {
         if items.is_empty() {
             return self.notify(empty);
         }
-        items.sort_by(|a, b| (a.page, a.rect.y0 as i32, a.rect.x0 as i32).cmp(&(b.page, b.rect.y0 as i32, b.rect.x0 as i32)));
+        items.sort_by_key(|a| (a.page, a.rect.y0 as i32, a.rect.x0 as i32));
         let labels = hint_labels(items.len(), &self.cfg.general.hint_chars);
         for (it, l) in items.iter_mut().zip(labels) {
             it.label = l;
@@ -1087,7 +1101,7 @@ impl App {
             }
             HintAction::Link(LinkTarget::Uri(uri)) => {
                 self.ctx.copy_text(uri.clone());
-                let _ = std::process::Command::new("xdg-open").arg(&uri).spawn();
+                open_external(&uri);
                 self.notify(format!("Opening {uri}"));
             }
             HintAction::Link(LinkTarget::Other(s)) => self.notify(format!("Unsupported link: {s}")),
@@ -1175,9 +1189,7 @@ impl App {
                     let desc = commands::builtin(commands::split(&cmd).0)
                         .map(|b| b.description.to_string())
                         .or_else(|| {
-                            self.script
-                                .as_ref()
-                                .and_then(|s| s.commands().into_iter().find(|(n, _)| *n == cmd).map(|(_, d)| d))
+                            self.script.as_ref().and_then(|s| s.commands().into_iter().find(|(n, _)| *n == cmd).map(|(_, d)| d))
                         })
                         .unwrap_or_default();
                     let label = if mode == "normal" { cmd.clone() } else { format!("{cmd}  [visual]") };
@@ -1203,7 +1215,9 @@ impl App {
                     .target
                     .map(|t| d.backend.page_label(t.page).unwrap_or_else(|| (t.page + 1).to_string()))
                     .unwrap_or_default();
-                PickItem::new(o.title.clone(), o.target.map(PickData::Pos).unwrap_or(PickData::None)).hint(hint).depth(o.depth.min(6))
+                PickItem::new(o.title.clone(), o.target.map(PickData::Pos).unwrap_or(PickData::None))
+                    .hint(hint)
+                    .depth(o.depth.min(6))
             })
             .collect();
         let cur = d.current_section();
@@ -1272,7 +1286,7 @@ impl App {
             .iter()
             .filter(|r| r.path.exists())
             .map(|r| {
-                let dir = r.path.parent().map(|p| tilde(p)).unwrap_or_default();
+                let dir = r.path.parent().map(tilde).unwrap_or_default();
                 PickItem::new(r.title.clone(), PickData::Path(r.path.clone())).detail(dir).hint(ago(r.opened))
             })
             .collect();
@@ -1316,12 +1330,12 @@ impl App {
                         refresh_files(p);
                         p.query_cursor_end();
                     }
-                } else if let Some(cur) = p.current().map(|i| i.data.clone()) {
-                    if let PickData::Command(c) = cur {
-                        p.query = format!("{c} ");
-                        p.refilter();
-                        p.query_cursor_end();
-                    }
+                } else if let Some(cur) = p.current().map(|i| i.data.clone())
+                    && let PickData::Command(c) = cur
+                {
+                    p.query = format!("{c} ");
+                    p.refilter();
+                    p.query_cursor_end();
                 }
             }
             PickerEvent::Delete => {
@@ -1396,20 +1410,20 @@ impl App {
             }
             PickData::Path(p) => self.open(&p),
             PickData::Highlight(i) => {
-                if let Some(d) = &mut self.doc {
-                    if let Some(h) = d.state.highlights.get(i) {
-                        let y = h.rects.first().map(|r| Rect::from(r).y0).unwrap_or(0.0);
-                        let pos = DocPos { page: h.page, y };
-                        d.jump(pos, 0.3, false);
-                    }
+                if let Some(d) = &mut self.doc
+                    && let Some(h) = d.state.highlights.get(i)
+                {
+                    let y = h.rects.first().map(|r| Rect::from(r).y0).unwrap_or(0.0);
+                    let pos = DocPos { page: h.page, y };
+                    d.jump(pos, 0.3, false);
                 }
             }
             PickData::Bookmark(i) => {
-                if let Some(d) = &mut self.doc {
-                    if let Some(b) = d.state.bookmarks.get(i) {
-                        let pos = b.pos;
-                        d.jump(pos, 0.0, false);
-                    }
+                if let Some(d) = &mut self.doc
+                    && let Some(b) = d.state.bookmarks.get(i)
+                {
+                    let pos = b.pos;
+                    d.jump(pos, 0.0, false);
                 }
             }
             PickData::Mark(c) => self.run_line(&format!("goto_mark {c}"), None),
@@ -1470,7 +1484,9 @@ impl App {
                 }
             }
             PromptKind::Lua(cb) => self.with_script(|s| s.call_fn(cb, text)),
-            PromptKind::Bookmark => self.run_line(&format!("add_bookmark {}", if text.is_empty() { "Bookmark" } else { &text }), None),
+            PromptKind::Bookmark => {
+                self.run_line(&format!("add_bookmark {}", if text.is_empty() { "Bookmark" } else { &text }), None)
+            }
             PromptKind::Annotate => {
                 let color = self.theme.highlights.get(1).map(|h| h.0.clone()).unwrap_or_else(|| "yellow".into());
                 self.add_highlight(color, text);
@@ -1480,13 +1496,13 @@ impl App {
 
     pub fn prompt_cancel(&mut self) {
         let Some(p) = self.prompt.take() else { return };
-        if let PromptKind::Search { .. } = p.kind {
-            if let Some(d) = &mut self.doc {
-                d.search = None;
-                d.text.cancel_search();
-                if let Some(o) = p.origin {
-                    d.view.goto(o, 0.0, false);
-                }
+        if let PromptKind::Search { .. } = p.kind
+            && let Some(d) = &mut self.doc
+        {
+            d.search = None;
+            d.text.cancel_search();
+            if let Some(o) = p.origin {
+                d.view.goto(o, 0.0, false);
             }
         }
     }
@@ -1593,14 +1609,14 @@ fn move_ruler(d: &mut Session, delta: i64, animate: bool) {
     }
     d.ruler = Some(r);
     let t = d.page_text(r.page);
-    if let Some(&(s, e)) = t.lines().get(r.line) {
-        if let Some(rect) = t.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b)) {
-            let top = d.view.page_top(r.page) + rect.y0 * d.view.zoom - d.view.target_y;
-            let bottom = d.view.page_top(r.page) + rect.y1 * d.view.zoom - d.view.target_y;
-            let vh = d.view.viewport.1;
-            if bottom > vh * 0.75 || top < vh * 0.1 {
-                d.view.goto(DocPos { page: r.page, y: rect.y0 }, if delta > 0 { 0.25 } else { 0.6 }, animate);
-            }
+    if let Some(&(s, e)) = t.lines().get(r.line)
+        && let Some(rect) = t.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b))
+    {
+        let top = d.view.page_top(r.page) + rect.y0 * d.view.zoom - d.view.target_y;
+        let bottom = d.view.page_top(r.page) + rect.y1 * d.view.zoom - d.view.target_y;
+        let vh = d.view.viewport.1;
+        if bottom > vh * 0.75 || top < vh * 0.1 {
+            d.view.goto(DocPos { page: r.page, y: rect.y0 }, if delta > 0 { 0.25 } else { 0.6 }, animate);
         }
     }
 }
@@ -1707,7 +1723,8 @@ fn export_markdown(d: &Session) -> String {
 fn refresh_files(p: &mut Picker) {
     let q = shellexpand(&p.query);
     let q_str = p.query.clone();
-    let dir = if q_str.ends_with('/') { q.clone() } else { q.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("/")) };
+    let dir =
+        if q_str.ends_with('/') { q.clone() } else { q.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("/")) };
     let mut items = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&dir) {
         let mut entries: Vec<_> = rd.flatten().collect();
@@ -1755,12 +1772,20 @@ fn save_png(path: &Path, img: &egui::ColorImage) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// Open a URL or file with the desktop's default handler.
+pub fn open_external(target: &str) {
+    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    if let Err(e) = std::process::Command::new(opener).arg(target).spawn() {
+        eprintln!("folio: {opener} failed: {e}");
+    }
+}
+
 pub fn shellexpand(s: &str) -> PathBuf {
     let s = s.trim();
-    if let Some(rest) = s.strip_prefix("~") {
-        if let Some(home) = std::env::var_os("HOME") {
-            return PathBuf::from(format!("{}{rest}", home.to_string_lossy()));
-        }
+    if let Some(rest) = s.strip_prefix("~")
+        && let Some(home) = std::env::var_os("HOME")
+    {
+        return PathBuf::from(format!("{}{rest}", home.to_string_lossy()));
     }
     PathBuf::from(s)
 }

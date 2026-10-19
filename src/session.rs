@@ -139,7 +139,8 @@ impl Session {
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         let meta = backend.metadata();
         let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let title = meta.title.filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word")).unwrap_or(file_name);
+        let title =
+            meta.title.filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word")).unwrap_or(file_name);
         let wake = {
             let ctx = ctx.clone();
             move || ctx.request_repaint()
@@ -243,8 +244,16 @@ impl Session {
             return;
         }
         let generation = self.text.search(query.clone());
-        self.search =
-            Some(SearchState { query, generation, hits: Vec::new(), current: None, done: false, backward, origin, jump_on_first: jump });
+        self.search = Some(SearchState {
+            query,
+            generation,
+            hits: Vec::new(),
+            current: None,
+            done: false,
+            backward,
+            origin,
+            jump_on_first: jump,
+        });
     }
 
     pub fn push_history(&mut self) {
@@ -279,10 +288,10 @@ impl Session {
         let pos = self.view.pos_at(0.3);
         let mut best = None;
         for (i, item) in self.outline.iter().enumerate() {
-            if let Some(t) = item.target {
-                if (t.page, t.y as i64) <= (pos.page, pos.y as i64 + 1) {
-                    best = Some(i);
-                }
+            if let Some(t) = item.target
+                && (t.page, t.y as i64) <= (pos.page, pos.y as i64 + 1)
+            {
+                best = Some(i);
             }
         }
         best

@@ -106,7 +106,9 @@ impl PageText {
                 continue;
             }
             match out.last_mut() {
-                Some(last) if (last.center_y() - r.center_y()).abs() < last.height().max(r.height()) * 0.5 && r.x0 >= last.x0 - 1.0 => {
+                Some(last)
+                    if (last.center_y() - r.center_y()).abs() < last.height().max(r.height()) * 0.5 && r.x0 >= last.x0 - 1.0 =>
+                {
                     *last = last.union(&r)
                 }
                 _ => out.push(r),
@@ -160,8 +162,20 @@ impl PageText {
             if self.chars[i] == '\n' {
                 continue;
             }
-            let dx = if x < r.x0 { r.x0 - x } else if x > r.x1 { x - r.x1 } else { 0.0 };
-            let dy = if y < r.y0 { r.y0 - y } else if y > r.y1 { y - r.y1 } else { 0.0 };
+            let dx = if x < r.x0 {
+                r.x0 - x
+            } else if x > r.x1 {
+                x - r.x1
+            } else {
+                0.0
+            };
+            let dy = if y < r.y0 {
+                r.y0 - y
+            } else if y > r.y1 {
+                y - r.y1
+            } else {
+                0.0
+            };
             // Weigh vertical distance more so we stick to the line under the cursor.
             let d = dx + dy * 4.0;
             if d < best_d {

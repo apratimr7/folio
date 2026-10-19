@@ -15,7 +15,7 @@ mod view;
 
 use std::path::PathBuf;
 
-use anyhow::{bail, Result};
+use anyhow::{Result, bail};
 
 const USAGE: &str = "\
 folio — a keyboard-first PDF reader for technical documents
@@ -25,6 +25,8 @@ usage:
   folio --print-config            print the default config.toml
   folio --print-init              print an example init.lua
   folio --init-config             write both into ~/.config/folio/ (won't overwrite)
+  folio --list-commands           print every command and its default keys (Markdown)
+  folio --version
   folio --remote CMD...           run commands in the running instance, e.g. --remote 'goto_page 12'
   folio --debug CMD FILE [PAGE]   inspect the backend: render|outline|text|links|refs|search
 ";
@@ -45,6 +47,14 @@ fn main() -> Result<()> {
             Ok(())
         }
         Some("--init-config") => init_config(),
+        Some("--list-commands") => {
+            list_commands();
+            Ok(())
+        }
+        Some("-V" | "--version") => {
+            println!("folio {}", env!("CARGO_PKG_VERSION"));
+            Ok(())
+        }
         Some("--debug") => debug(&args[1..]),
         Some("--remote") => ipc::send(&args[1..]),
         Some(flag) if flag.starts_with("--") => bail!("unknown option {flag}\n\n{USAGE}"),
@@ -63,6 +73,23 @@ fn run(path: Option<PathBuf>) -> Result<()> {
     };
     eframe::run_native("folio", options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, path)))))
         .map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+/// Markdown table of all built-in commands with their default bindings.
+fn list_commands() {
+    let mut keys: std::collections::BTreeMap<&str, Vec<String>> = Default::default();
+    for (mode, defaults) in [("", keymap::NORMAL_DEFAULTS), ("visual: ", keymap::VISUAL_DEFAULTS)] {
+        for (k, c) in defaults {
+            let name = c.split_whitespace().next().unwrap_or(c);
+            keys.entry(name).or_default().push(format!("{mode}`{}`", k.replace('|', "\\|")));
+        }
+    }
+    println!("| command | argument | default keys | description |");
+    println!("|---|---|---|---|");
+    for c in commands::BUILTINS {
+        let k = keys.get(c.name).map(|v| v.join(" ")).unwrap_or_default();
+        println!("| `{}` | {} | {} | {} |", c.name, c.arg.unwrap_or(""), k, c.description);
+    }
 }
 
 fn init_config() -> Result<()> {
@@ -104,7 +131,7 @@ fn debug(args: &[String]) -> Result<()> {
             }
             let out = args.get(3).cloned().unwrap_or_else(|| "page.ppm".into());
             let mut buf = format!("P6\n{} {}\n255\n", bmp.width, bmp.height).into_bytes();
-            for px in bmp.pixels.chunks_exact(4) {
+            for px in bmp.pixels.as_chunks::<4>().0 {
                 buf.extend_from_slice(&px[..3]);
             }
             std::fs::write(out, buf)?;

@@ -7,7 +7,7 @@
 use std::ffi::CStr;
 use std::path::Path;
 
-use anyhow::{anyhow, Context, Result};
+use anyhow::{Context, Result, anyhow};
 use glib::translate::ToGlibPtr;
 use poppler::ffi;
 
@@ -110,11 +110,7 @@ impl PopplerDoc {
 }
 
 unsafe fn cstr(p: *const std::os::raw::c_char) -> String {
-    if p.is_null() {
-        String::new()
-    } else {
-        CStr::from_ptr(p).to_string_lossy().into_owned()
-    }
+    if p.is_null() { String::new() } else { CStr::from_ptr(p).to_string_lossy().into_owned() }
 }
 
 impl Backend for PopplerDoc {
@@ -150,7 +146,7 @@ impl Backend for PopplerDoc {
         let mut pixels = Vec::with_capacity((w * h * 4) as usize);
         for row in 0..h as usize {
             let line = &data[row * stride..row * stride + w as usize * 4];
-            for px in line.chunks_exact(4) {
+            for px in line.as_chunks::<4>().0 {
                 // Cairo stores native-endian xRGB, i.e. BGRx in memory on little-endian.
                 let v = u32::from_ne_bytes([px[0], px[1], px[2], px[3]]);
                 pixels.extend_from_slice(&[(v >> 16) as u8, (v >> 8) as u8, v as u8, 255]);

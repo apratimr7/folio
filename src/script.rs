@@ -215,7 +215,13 @@ fn install_api(
 
     // folio.exec("goto_page 12")
     let p = push.clone();
-    folio.set("exec", lua.create_function(move |_, cmd: String| Ok(p(Effect::Exec(cmd))))?)?;
+    folio.set(
+        "exec",
+        lua.create_function(move |_, cmd: String| {
+            let _: () = p(Effect::Exec(cmd));
+            Ok(())
+        })?,
+    )?;
 
     // folio.notify(msg, "info"|"warn"|"error")
     let p = push.clone();
@@ -227,7 +233,8 @@ fn install_api(
                 Some("error") => Level::Error,
                 _ => Level::Info,
             };
-            Ok(p(Effect::Notify(msg, level)))
+            let _: () = p(Effect::Notify(msg, level));
+            Ok(())
         })?,
     )?;
 
@@ -238,7 +245,8 @@ fn install_api(
         folio.set(
             "map",
             lua.create_function(move |_, (keys, action, opts): (String, Value, Option<Table>)| {
-                let mode = opts.as_ref().and_then(|o| o.get::<Option<String>>("mode").ok().flatten()).unwrap_or_else(|| "normal".into());
+                let mode =
+                    opts.as_ref().and_then(|o| o.get::<Option<String>>("mode").ok().flatten()).unwrap_or_else(|| "normal".into());
                 let command = match action {
                     Value::String(s) => s.to_str()?.to_string(),
                     Value::Function(f) => {
@@ -254,7 +262,8 @@ fn install_api(
                     Value::Nil => String::new(),
                     _ => return Err(mlua::Error::runtime("folio.map: action must be a string or function")),
                 };
-                Ok(p(Effect::Map { mode, keys, command }))
+                let _: () = p(Effect::Map { mode, keys, command });
+                Ok(())
             })?,
         )?;
     }
@@ -380,11 +389,18 @@ fn install_api(
     folio.set(
         "show",
         lua.create_function(move |_, (title, text): (String, Option<String>)| {
-            Ok(p(Effect::Show { title, text: text.unwrap_or_default() }))
+            let _: () = p(Effect::Show { title, text: text.unwrap_or_default() });
+            Ok(())
         })?,
     )?;
     let p = push.clone();
-    folio.set("append", lua.create_function(move |_, text: String| Ok(p(Effect::Append(text))))?)?;
+    folio.set(
+        "append",
+        lua.create_function(move |_, text: String| {
+            let _: () = p(Effect::Append(text));
+            Ok(())
+        })?,
+    )?;
 
     // folio.prompt("Ask:", function(input) end, "initial")
     {
@@ -394,7 +410,8 @@ fn install_api(
             "prompt",
             lua.create_function(move |_, (label, f, initial): (String, Function, Option<String>)| {
                 let callback = register(&shared, f);
-                Ok(p(Effect::Prompt { label, callback, initial: initial.unwrap_or_default() }))
+                let _: () = p(Effect::Prompt { label, callback, initial: initial.unwrap_or_default() });
+                Ok(())
             })?,
         )?;
     }
@@ -407,20 +424,34 @@ fn install_api(
             "pick",
             lua.create_function(move |_, (title, items, f): (String, Vec<String>, Function)| {
                 let callback = register(&shared, f);
-                Ok(p(Effect::Pick { title, items, callback }))
+                let _: () = p(Effect::Pick { title, items, callback });
+                Ok(())
             })?,
         )?;
     }
 
     let p = push.clone();
-    folio.set("clipboard", lua.create_function(move |_, text: String| Ok(p(Effect::Clipboard(text))))?)?;
+    folio.set(
+        "clipboard",
+        lua.create_function(move |_, text: String| {
+            let _: () = p(Effect::Clipboard(text));
+            Ok(())
+        })?,
+    )?;
     let p = push.clone();
-    folio.set("open", lua.create_function(move |_, path: String| Ok(p(Effect::Open(PathBuf::from(path)))))?)?;
+    folio.set(
+        "open",
+        lua.create_function(move |_, path: String| {
+            let _: () = p(Effect::Open(PathBuf::from(path)));
+            Ok(())
+        })?,
+    )?;
     let p = push.clone();
     folio.set(
         "set",
         lua.create_function(move |_, (key, value): (String, Value)| {
-            Ok(p(Effect::SetOption(key, display_value(&value))))
+            let _: () = p(Effect::SetOption(key, display_value(&value)));
+            Ok(())
         })?,
     )?;
 

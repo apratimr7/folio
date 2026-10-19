@@ -1,8 +1,8 @@
 //! Background text worker: full-document search and reference resolution.
 
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU32, Ordering};
 
 use crossbeam_channel::{Receiver, Sender};
 
@@ -126,11 +126,8 @@ impl Index {
         // Scan forward from the reference, then wrap: this finds the *next*
         // bibliography for per-chapter reference lists, and later definitions
         // (appendix figures) as well as earlier ones (equations).
-        let order: Vec<usize> = if kind == RefKind::Citation {
-            (from_page..n).chain(0..from_page).collect()
-        } else {
-            (0..n).collect()
-        };
+        let order: Vec<usize> =
+            if kind == RefKind::Citation { (from_page..n).chain(0..from_page).collect() } else { (0..n).collect() };
         let mut fallback = None;
         let mut biblio_run = 0usize;
         for p in order {

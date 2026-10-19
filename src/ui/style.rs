@@ -30,7 +30,8 @@ pub fn apply(ctx: &egui::Context, theme: &Theme, general: &General) {
     visuals.window_stroke = Stroke::new(1.0, c(theme.border));
     visuals.window_corner_radius = r;
     visuals.menu_corner_radius = r;
-    visuals.window_shadow = Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if theme.dark { 120 } else { 50 }) };
+    visuals.window_shadow =
+        Shadow { offset: [0, 8], blur: 28, spread: 0, color: Color32::from_black_alpha(if theme.dark { 120 } else { 50 }) };
     visuals.popup_shadow = visuals.window_shadow;
     visuals.selection.bg_fill = with_alpha(theme.accent, 90);
     visuals.selection.stroke = Stroke::new(1.0, c(theme.accent));
@@ -76,36 +77,38 @@ pub fn apply(ctx: &egui::Context, theme: &Theme, general: &General) {
 
 /// Resolve the interface font: the configured path, else Inter / Noto / Cantarell via fontconfig.
 pub fn install_fonts(ctx: &egui::Context, general: &General) {
-    let mut path = general.ui_font.clone();
-    if path.is_none() {
-        for family in ["Inter", "Inter Variable", "Noto Sans", "Cantarell", "IBM Plex Sans"] {
-            let out = std::process::Command::new("fc-match").args(["-f", "%{family}\n%{file}", family]).output();
-            if let Ok(out) = out {
-                let s = String::from_utf8_lossy(&out.stdout);
-                let mut lines = s.lines();
-                let (fam, file) = (lines.next().unwrap_or(""), lines.next().unwrap_or(""));
-                if fam.split(',').any(|f| f.trim() == family) && !file.is_empty() {
-                    path = Some(file.into());
-                    break;
-                }
-            }
-        }
-    }
+    let ui = general.ui_font.clone().or_else(|| {
+        find_font(
+            &["Inter", "Inter Variable", "Noto Sans", "Cantarell", "IBM Plex Sans"],
+            &["/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"],
+        )
+    });
+    let mono = find_font(
+        &["JetBrains Mono", "JetBrainsMono Nerd Font", "Fira Code"],
+        &["/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc"],
+    );
     let mut fonts = FontDefinitions::default();
-    let mut mono_path = None;
-    if let Ok(out) = std::process::Command::new("fc-match").args(["-f", "%{file}", "JetBrains Mono"]).output() {
-        let f = String::from_utf8_lossy(&out.stdout).to_string();
-        if f.to_lowercase().contains("jetbrains") {
-            mono_path = Some(f);
+    for (name, path, family) in [("ui", ui, FontFamily::Proportional), ("mono", mono, FontFamily::Monospace)] {
+        if let Some(bytes) = path.and_then(|p| std::fs::read(p).ok()) {
+            fonts.font_data.insert(name.into(), FontData::from_owned(bytes).into());
+            fonts.families.entry(family).or_default().insert(0, name.into());
         }
-    }
-    if let Some(bytes) = path.and_then(|p| std::fs::read(p).ok()) {
-        fonts.font_data.insert("ui".into(), FontData::from_owned(bytes).into());
-        fonts.families.entry(FontFamily::Proportional).or_default().insert(0, "ui".into());
-    }
-    if let Some(bytes) = mono_path.and_then(|p| std::fs::read(p).ok()) {
-        fonts.font_data.insert("mono".into(), FontData::from_owned(bytes).into());
-        fonts.families.entry(FontFamily::Monospace).or_default().insert(0, "mono".into());
     }
     ctx.set_fonts(fonts);
+}
+
+/// The first family fontconfig really has (not a fallback substitute), else the first existing path.
+fn find_font(families: &[&str], paths: &[&str]) -> Option<std::path::PathBuf> {
+    for family in families {
+        let Ok(out) = std::process::Command::new("fc-match").args(["-f", "%{family}\n%{file}", family]).output() else {
+            break; // no fontconfig (e.g. macOS)
+        };
+        let s = String::from_utf8_lossy(&out.stdout);
+        let mut lines = s.lines();
+        let (fam, file) = (lines.next().unwrap_or(""), lines.next().unwrap_or(""));
+        if fam.split(',').any(|f| f.trim() == *family) && !file.is_empty() {
+            return Some(file.into());
+        }
+    }
+    paths.iter().map(std::path::PathBuf::from).find(|p| p.exists())
 }

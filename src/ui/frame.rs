@@ -3,17 +3,17 @@
 use std::time::{Duration, Instant};
 
 use eframe::egui::{
-    self, Align2, Color32, CornerRadius, CursorIcon, Event, FontId, Key, Modifiers, Pos2, Rect, RichText, Sense, Stroke, StrokeKind,
-    TextureOptions, Vec2,
+    self, Align2, Color32, CornerRadius, CursorIcon, Event, FontId, Key, Modifiers, Pos2, Rect, RichText, Sense, Stroke,
+    StrokeKind, TextureOptions, Vec2,
 };
 
 use super::picker::set_cursor_end;
 use super::style::{c, radius, with_alpha};
-use crate::app::{notify_into, reveal, App, Mode, PromptKind};
+use crate::app::{App, Mode, PromptKind, notify_into, reveal};
 use crate::config::PageMode;
 use crate::doc::{self, DocPos};
 use crate::keymap::Chord;
-use crate::render::{tile_rect, TileKey, TILE};
+use crate::render::{TILE, TileKey, tile_rect};
 use crate::script::Level;
 use crate::session::{HintMode, Session, TexEntry};
 use crate::text::Response as TextResponse;
@@ -136,11 +136,7 @@ fn chords(events: &[Event]) -> Vec<Chord> {
                         k => {
                             let s = k.symbol_or_name();
                             if s.chars().count() == 1 {
-                                if modifiers.shift {
-                                    s.to_uppercase()
-                                } else {
-                                    s.to_lowercase()
-                                }
+                                if modifiers.shift { s.to_uppercase() } else { s.to_lowercase() }
                             } else {
                                 s.to_string()
                             }
@@ -260,7 +256,8 @@ impl App {
                 }
                 let image = egui::ColorImage::from_rgba_premultiplied([tile.width as usize, tile.height as usize], &tile.pixels);
                 let k = tile.key;
-                let handle = ctx.load_texture(format!("p{}s{}t{}x{}", k.page, k.scale_milli, k.tx, k.ty), image, TextureOptions::LINEAR);
+                let handle =
+                    ctx.load_texture(format!("p{}s{}t{}x{}", k.page, k.scale_milli, k.tx, k.ty), image, TextureOptions::LINEAR);
                 let bytes = tile.pixels.len();
                 if let Some(old) = d.textures.insert(tile.key, TexEntry { handle, last_used: Instant::now(), bytes }) {
                     d.tex_bytes -= old.bytes;
@@ -418,10 +415,10 @@ impl App {
         d.view.set_viewport(rect.width(), rect.height());
         if d.first_frame {
             d.first_frame = false;
-            if self.cfg.general.restore_position {
-                if let Some(pos) = d.state.pos {
-                    d.view.goto(pos, 0.0, false);
-                }
+            if self.cfg.general.restore_position
+                && let Some(pos) = d.state.pos
+            {
+                d.view.goto(pos, 0.0, false);
             }
         }
 
@@ -451,7 +448,8 @@ impl App {
             PageMode::Normal => Color32::WHITE,
             _ => c(theme.page_bg),
         };
-        let current_scale_milli = ((d.view.zoom * ppp * self.cfg.general.render_oversample.clamp(0.5, 3.0)) * 1000.0).round() as u32;
+        let current_scale_milli =
+            ((d.view.zoom * ppp * self.cfg.general.render_oversample.clamp(0.5, 3.0)) * 1000.0).round() as u32;
         let zoom = d.view.zoom;
         let vis = d.view.visible_pages();
         let mut hover_link = false;
@@ -481,9 +479,8 @@ impl App {
                 painter.image(tex.handle.id(), tr, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
             }
 
-            let to_screen = |r: &doc::Rect| {
-                Rect::from_min_max(pr.min + Vec2::new(r.x0, r.y0) * zoom, pr.min + Vec2::new(r.x1, r.y1) * zoom)
-            };
+            let to_screen =
+                |r: &doc::Rect| Rect::from_min_max(pr.min + Vec2::new(r.x0, r.y0) * zoom, pr.min + Vec2::new(r.x1, r.y1) * zoom);
 
             // Highlights.
             for hl in d.state.highlights.iter().filter(|h| h.page == p) {
@@ -492,11 +489,11 @@ impl App {
                     let sr = to_screen(&doc::Rect::from(r)).expand2(Vec2::new(1.0, 1.5));
                     painter.rect_filled(sr, 2.0, col);
                 }
-                if !hl.note.is_empty() {
-                    if let Some(first) = hl.rects.first() {
-                        let sr = to_screen(&doc::Rect::from(first));
-                        painter.circle_filled(Pos2::new(sr.left() - 6.0, sr.center().y), 3.0, c(theme.accent));
-                    }
+                if !hl.note.is_empty()
+                    && let Some(first) = hl.rects.first()
+                {
+                    let sr = to_screen(&doc::Rect::from(first));
+                    painter.circle_filled(Pos2::new(sr.left() - 6.0, sr.center().y), 3.0, c(theme.accent));
                 }
             }
 
@@ -509,7 +506,12 @@ impl App {
                         let sr = to_screen(r).expand2(Vec2::new(1.5, 1.5));
                         painter.rect_filled(sr, 3.0, col);
                         if current {
-                            painter.rect_stroke(sr, 3.0, Stroke::new(1.5, with_alpha(theme.search_current, 255)), StrokeKind::Outside);
+                            painter.rect_stroke(
+                                sr,
+                                3.0,
+                                Stroke::new(1.5, with_alpha(theme.search_current, 255)),
+                                StrokeKind::Outside,
+                            );
                         }
                     }
                 }
@@ -531,19 +533,19 @@ impl App {
             // Reading ruler.
             if let Some(r) = d.ruler.filter(|r| r.page == p) {
                 let t = d.page_text(p);
-                if let Some(&(s, e)) = t.lines().get(r.line) {
-                    if let Some(lr) = t.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b)) {
-                        let sr = to_screen(&lr);
-                        let band = Rect::from_min_max(Pos2::new(pr.left(), sr.top() - 3.0), Pos2::new(pr.right(), sr.bottom() + 3.0));
-                        painter.rect_filled(band, 0.0, c(theme.ruler));
-                        painter.line_segment(
-                            [Pos2::new(pr.left(), band.bottom()), Pos2::new(pr.right(), band.bottom())],
-                            Stroke::new(1.5, with_alpha(theme.accent, 160)),
-                        );
-                        // Dim what's already been read.
-                        let dim = Rect::from_min_max(pr.min, Pos2::new(pr.right(), band.top()));
-                        painter.rect_filled(dim, 0.0, Color32::from_black_alpha(if theme.dark { 40 } else { 18 }));
-                    }
+                if let Some(&(s, e)) = t.lines().get(r.line)
+                    && let Some(lr) = t.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b))
+                {
+                    let sr = to_screen(&lr);
+                    let band = Rect::from_min_max(Pos2::new(pr.left(), sr.top() - 3.0), Pos2::new(pr.right(), sr.bottom() + 3.0));
+                    painter.rect_filled(band, 0.0, c(theme.ruler));
+                    painter.line_segment(
+                        [Pos2::new(pr.left(), band.bottom()), Pos2::new(pr.right(), band.bottom())],
+                        Stroke::new(1.5, with_alpha(theme.accent, 160)),
+                    );
+                    // Dim what's already been read.
+                    let dim = Rect::from_min_max(pr.min, Pos2::new(pr.right(), band.top()));
+                    painter.rect_filled(dim, 0.0, Color32::from_black_alpha(if theme.dark { 40 } else { 18 }));
                 }
             }
 
@@ -551,7 +553,12 @@ impl App {
             if let Some(hints) = &d.hints {
                 for item in hints.items.iter().filter(|i| i.page == p && i.label.starts_with(&hints.typed)) {
                     let sr = to_screen(&item.rect);
-                    painter.rect_stroke(sr.expand(1.0), 2.0, Stroke::new(1.0, with_alpha(theme.hint_bg, 200)), StrokeKind::Outside);
+                    painter.rect_stroke(
+                        sr.expand(1.0),
+                        2.0,
+                        Stroke::new(1.0, with_alpha(theme.hint_bg, 200)),
+                        StrokeKind::Outside,
+                    );
                     let font = FontId::monospace(12.5);
                     let rest = &item.label[hints.typed.len()..];
                     let galley = painter.layout_no_wrap(rest.to_uppercase(), font, c(theme.hint_text));
@@ -569,9 +576,10 @@ impl App {
             // Link hover cursor.
             if let Some(ptr) = pointer.filter(|ptr| pr.contains(*ptr)) {
                 let local = (ptr - pr.min) / zoom;
-                if d.page_links(p).iter().any(|l| {
-                    local.x >= l.rect.x0 && local.x <= l.rect.x1 && local.y >= l.rect.y0 && local.y <= l.rect.y1
-                }) {
+                if d.page_links(p)
+                    .iter()
+                    .any(|l| local.x >= l.rect.x0 && local.x <= l.rect.x1 && local.y >= l.rect.y0 && local.y <= l.rect.y1)
+                {
                     hover_link = true;
                 }
             }
@@ -584,14 +592,14 @@ impl App {
         }
         self.canvas_mouse(&resp, rect);
 
-        if let Some(d) = &self.doc {
-            if d.hints.is_some() {
-                let label = match d.hints.as_ref().unwrap().mode {
-                    HintMode::Jump => "type a label to jump  ·  SHIFT+label to peek  ·  Esc cancels",
-                    HintMode::Peek => "type a label to peek  ·  Esc cancels",
-                };
-                banner(&painter, rect, &theme, label);
-            }
+        if let Some(d) = &self.doc
+            && d.hints.is_some()
+        {
+            let label = match d.hints.as_ref().unwrap().mode {
+                HintMode::Jump => "type a label to jump  ·  SHIFT+label to peek  ·  Esc cancels",
+                HintMode::Peek => "type a label to peek  ·  Esc cancels",
+            };
+            banner(&painter, rect, &theme, label);
         }
     }
 
@@ -613,22 +621,22 @@ impl App {
                 self.drag_anchor = t.char_at(x, y).map(|ci| (page, ci));
             }
         }
-        if resp.dragged_by(egui::PointerButton::Primary) {
-            if let (Some((page, anchor)), Some(pos)) = (self.drag_anchor, resp.interact_pointer_pos()) {
-                // Auto-scroll when dragging past the edges.
-                if pos.y > rect.bottom() - 20.0 {
-                    d.view.scroll_by(12.0, false);
-                } else if pos.y < rect.top() + 20.0 {
-                    d.view.scroll_by(-12.0, false);
-                }
-                if let Some((p2, x, y)) = to_doc(d, pos) {
-                    if p2 == page {
-                        let t = d.page_text(page);
-                        if let Some(ci) = t.char_at(x, y) {
-                            d.selection = Some(crate::session::Selection { page, anchor, cursor: ci });
-                            self.mode = Mode::Visual;
-                        }
-                    }
+        if resp.dragged_by(egui::PointerButton::Primary)
+            && let (Some((page, anchor)), Some(pos)) = (self.drag_anchor, resp.interact_pointer_pos())
+        {
+            // Auto-scroll when dragging past the edges.
+            if pos.y > rect.bottom() - 20.0 {
+                d.view.scroll_by(12.0, false);
+            } else if pos.y < rect.top() + 20.0 {
+                d.view.scroll_by(-12.0, false);
+            }
+            if let Some((p2, x, y)) = to_doc(d, pos)
+                && p2 == page
+            {
+                let t = d.page_text(page);
+                if let Some(ci) = t.char_at(x, y) {
+                    d.selection = Some(crate::session::Selection { page, anchor, cursor: ci });
+                    self.mode = Mode::Visual;
                 }
             }
         }
@@ -642,23 +650,24 @@ impl App {
         if resp.double_clicked() {
             if let Some((page, x, y)) = resp.interact_pointer_pos().and_then(|p| to_doc(d, p)) {
                 let t = d.page_text(page);
-                if let Some(ci) = t.char_at(x, y) {
-                    if let Some(&(s, e)) = t.words().iter().find(|&&(s, e)| ci >= s && ci < e) {
-                        d.selection = Some(crate::session::Selection { page, anchor: s, cursor: e - 1 });
-                        self.mode = Mode::Visual;
-                    }
+                if let Some(ci) = t.char_at(x, y)
+                    && let Some(&(s, e)) = t.words().iter().find(|&&(s, e)| ci >= s && ci < e)
+                {
+                    d.selection = Some(crate::session::Selection { page, anchor: s, cursor: e - 1 });
+                    self.mode = Mode::Visual;
                 }
             }
         } else if resp.clicked() {
             let Some((page, x, y)) = resp.interact_pointer_pos().and_then(|p| to_doc(d, p)) else { return };
-            let link = d.page_links(page).iter().find(|l| x >= l.rect.x0 && x <= l.rect.x1 && y >= l.rect.y0 && y <= l.rect.y1).cloned();
+            let link =
+                d.page_links(page).iter().find(|l| x >= l.rect.x0 && x <= l.rect.x1 && y >= l.rect.y0 && y <= l.rect.y1).cloned();
             d.selection = None;
             self.mode = Mode::Normal;
             if let Some(link) = link {
                 match link.target {
                     doc::LinkTarget::Page(pos) => d.jump(pos, 0.1, false),
                     doc::LinkTarget::Uri(uri) => {
-                        let _ = std::process::Command::new("xdg-open").arg(&uri).spawn();
+                        crate::app::open_external(&uri);
                         self.notify(format!("Opening {uri}"));
                     }
                     doc::LinkTarget::Other(s) => self.notify(format!("Unsupported link: {s}")),
@@ -667,7 +676,8 @@ impl App {
         } else if resp.secondary_clicked() {
             // Right click previews internal links.
             let Some((page, x, y)) = resp.interact_pointer_pos().and_then(|p| to_doc(d, p)) else { return };
-            let link = d.page_links(page).iter().find(|l| x >= l.rect.x0 && x <= l.rect.x1 && y >= l.rect.y0 && y <= l.rect.y1).cloned();
+            let link =
+                d.page_links(page).iter().find(|l| x >= l.rect.x0 && x <= l.rect.x1 && y >= l.rect.y0 && y <= l.rect.y1).cloned();
             if let Some(doc::LinkTarget::Page(pos)) = link.map(|l| l.target) {
                 crate::app::open_peek(d, pos, None, format!("Link → page {}", pos.page + 1));
             }
@@ -713,9 +723,12 @@ impl App {
                 _ => ("NORMAL", t.accent),
             };
             let col = egui::Color32::from_rgb(col.0[0], col.0[1], col.0[2]);
-            egui::Frame::new().fill(col).corner_radius(CornerRadius::same(4)).inner_margin(egui::Margin::symmetric(7, 1)).show(ui, |ui| {
-                ui.label(RichText::new(mode).size(11.5).strong().color(c(t.accent_text)));
-            });
+            egui::Frame::new().fill(col).corner_radius(CornerRadius::same(4)).inner_margin(egui::Margin::symmetric(7, 1)).show(
+                ui,
+                |ui| {
+                    ui.label(RichText::new(mode).size(11.5).strong().color(c(t.accent_text)));
+                },
+            );
             let Some(d) = &self.doc else {
                 ui.label(RichText::new("no document").color(c(t.text_dim)));
                 return;
@@ -841,9 +854,13 @@ impl App {
         egui::ScrollArea::vertical().auto_shrink([false, false]).show(ui, |ui| {
             for (i, item) in d.outline.iter().enumerate() {
                 let selected = current == Some(i);
-                let text = RichText::new(&item.title)
-                    .size(if item.depth == 0 { 13.5 } else { 12.5 })
-                    .color(if selected { c(t.accent) } else if item.depth == 0 { c(t.text) } else { c(t.text_dim) });
+                let text = RichText::new(&item.title).size(if item.depth == 0 { 13.5 } else { 12.5 }).color(if selected {
+                    c(t.accent)
+                } else if item.depth == 0 {
+                    c(t.text)
+                } else {
+                    c(t.text_dim)
+                });
                 ui.horizontal(|ui| {
                     ui.add_space(item.depth as f32 * 12.0);
                     let r = ui.add(egui::Label::new(text).truncate().sense(Sense::click()));
@@ -910,7 +927,9 @@ impl App {
                             ui.label(RichText::new(&title).strong().color(c(t.accent)));
                             ui.label(RichText::new(format!("page {}", page + 1)).color(c(t.text_dim)));
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                                ui.label(RichText::new("j/k scroll · J/K page · Enter go · Esc close").small().color(c(t.text_dim)));
+                                ui.label(
+                                    RichText::new("j/k scroll · J/K page · Enter go · Esc close").small().color(c(t.text_dim)),
+                                );
                             });
                         });
                         let (rect, _) = ui.allocate_exact_size(Vec2::new(width - 20.0, height), Sense::hover());
@@ -920,20 +939,32 @@ impl App {
                         let left = rect.left() + ((rect.width() - page_w) * 0.5).max(0.0);
                         let pr = Rect::from_min_size(Pos2::new(left, rect.top() - y * zoom), Vec2::new(page_w, ph * zoom));
                         painter.rect_filled(pr, 0.0, page_bg);
-                        let mut keys: Vec<TileKey> =
-                            d.textures.keys().filter(|k| k.page == page && k.mode == mode && k.generation == d.generation).copied().collect();
-                        let want = ((zoom * ctx.pixels_per_point() * self.cfg.general.render_oversample.clamp(0.5, 3.0)) * 1000.0).round() as u32;
+                        let mut keys: Vec<TileKey> = d
+                            .textures
+                            .keys()
+                            .filter(|k| k.page == page && k.mode == mode && k.generation == d.generation)
+                            .copied()
+                            .collect();
+                        let want = ((zoom * ctx.pixels_per_point() * self.cfg.general.render_oversample.clamp(0.5, 3.0)) * 1000.0)
+                            .round() as u32;
                         keys.sort_by_key(|k| (k.scale_milli == want, k.scale_milli));
                         for k in keys {
                             let s = k.scale();
                             let tex = &d.textures[&k];
                             let size = tex.handle.size();
-                            let min = pr.min + Vec2::new(k.tx as f32 * TILE as f32 / s * zoom, k.ty as f32 * TILE as f32 / s * zoom);
+                            let min =
+                                pr.min + Vec2::new(k.tx as f32 * TILE as f32 / s * zoom, k.ty as f32 * TILE as f32 / s * zoom);
                             let tr = Rect::from_min_size(min, Vec2::new(size[0] as f32 / s * zoom, size[1] as f32 / s * zoom));
-                            painter.image(tex.handle.id(), tr, Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)), Color32::WHITE);
+                            painter.image(
+                                tex.handle.id(),
+                                tr,
+                                Rect::from_min_max(Pos2::ZERO, Pos2::new(1.0, 1.0)),
+                                Color32::WHITE,
+                            );
                         }
                         if let Some(r) = target {
-                            let sr = Rect::from_min_max(pr.min + Vec2::new(r.x0, r.y0) * zoom, pr.min + Vec2::new(r.x1, r.y1) * zoom);
+                            let sr =
+                                Rect::from_min_max(pr.min + Vec2::new(r.x0, r.y0) * zoom, pr.min + Vec2::new(r.x1, r.y1) * zoom);
                             painter.rect_stroke(sr.expand(3.0), 3.0, Stroke::new(2.0, c(t.accent)), StrokeKind::Outside);
                         }
                     });

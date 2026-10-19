@@ -52,6 +52,10 @@ impl Drop for Server {
 
 /// Remove sockets left behind by instances that were killed.
 fn cleanup_stale() {
+    // Liveness is checked through /proc, which only Linux has.
+    if !cfg!(target_os = "linux") {
+        return;
+    }
     let Ok(entries) = std::fs::read_dir(socket_dir()) else { return };
     for e in entries.flatten() {
         let name = e.file_name().to_string_lossy().to_string();

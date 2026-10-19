@@ -46,7 +46,7 @@ folio.map("gd", "define", { mode = "visual" })
 
 -- Search the selection on arXiv / Google Scholar.
 local function open_url(url)
-  folio.spawn({ "xdg-open", url }, function() end)
+  folio.exec("open_url " .. url)
 end
 local function urlencode(s)
   return (s:gsub("[^%w%-_%.~]", function(c) return ("%%%02X"):format(c:byte()) end))

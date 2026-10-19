@@ -89,9 +89,14 @@ pub fn now() -> u64 {
     SystemTime::now().duration_since(UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
 }
 
+/// FNV-1a: tiny and stable across Rust versions (unlike `DefaultHasher`).
+fn fnv1a(bytes: &[u8]) -> u64 {
+    bytes.iter().fold(0xcbf29ce484222325u64, |h, &b| (h ^ b as u64).wrapping_mul(0x100000001b3))
+}
+
 fn doc_file(path: &Path) -> PathBuf {
-    let key = blake3::hash(path.to_string_lossy().as_bytes()).to_hex();
-    data_dir().join("docs").join(format!("{}.json", &key[..24]))
+    let key = fnv1a(path.to_string_lossy().as_bytes());
+    data_dir().join("docs").join(format!("{key:016x}.json"))
 }
 
 fn write_atomic(path: &Path, data: &[u8]) -> std::io::Result<()> {
@@ -112,10 +117,10 @@ impl DocState {
     }
 
     pub fn save(&self) {
-        if let Ok(json) = serde_json::to_vec_pretty(self) {
-            if let Err(e) = write_atomic(&doc_file(&self.path), &json) {
-                eprintln!("folio: failed to save state: {e}");
-            }
+        if let Ok(json) = serde_json::to_vec_pretty(self)
+            && let Err(e) = write_atomic(&doc_file(&self.path), &json)
+        {
+            eprintln!("folio: failed to save state: {e}");
         }
     }
 }

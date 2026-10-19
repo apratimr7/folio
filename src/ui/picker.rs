@@ -225,7 +225,9 @@ impl Picker {
                             ui.label(RichText::new(&self.title).color(c(theme.accent)).strong());
                             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                                 ui.label(
-                                    RichText::new(format!("{}/{}", self.filtered.len(), self.items.len())).small().color(c(theme.text_dim)),
+                                    RichText::new(format!("{}/{}", self.filtered.len(), self.items.len()))
+                                        .small()
+                                        .color(c(theme.text_dim)),
                                 );
                             });
                         });
@@ -250,18 +252,21 @@ impl Picker {
                         }
                         ui.add_space(6.0);
                         let row_h = 28.0;
-                        egui::ScrollArea::vertical()
-                            .max_height(row_h * max_rows as f32)
-                            .auto_shrink([false, true])
-                            .show(ui, |ui| {
+                        egui::ScrollArea::vertical().max_height(row_h * max_rows as f32).auto_shrink([false, true]).show(
+                            ui,
+                            |ui| {
                                 for (row, &idx) in self.filtered.iter().enumerate() {
                                     let item = &self.items[idx];
                                     let selected = row == self.selected;
-                                    let (rect, resp) = ui.allocate_exact_size(egui::vec2(ui.available_width(), row_h), egui::Sense::click());
+                                    let (rect, resp) =
+                                        ui.allocate_exact_size(egui::vec2(ui.available_width(), row_h), egui::Sense::click());
                                     if selected {
                                         ui.painter().rect_filled(rect, radius(theme), with_alpha(theme.accent, 38));
                                         ui.painter().rect_filled(
-                                            egui::Rect::from_min_size(rect.min + egui::vec2(0.0, 6.0), egui::vec2(3.0, row_h - 12.0)),
+                                            egui::Rect::from_min_size(
+                                                rect.min + egui::vec2(0.0, 6.0),
+                                                egui::vec2(3.0, row_h - 12.0),
+                                            ),
                                             2,
                                             c(theme.accent),
                                         );
@@ -274,13 +279,20 @@ impl Picker {
                                     let x = rect.left() + 12.0 + item.depth as f32 * 16.0;
                                     let painter = ui.painter_at(rect);
                                     let label_color = if selected { c(theme.text) } else { with_alpha(theme.text, 220) };
-                                    let font = FontId::proportional(if item.depth == 0 && self.kind == PickerKind::Toc { 14.5 } else { 14.0 });
+                                    let font = FontId::proportional(if item.depth == 0 && self.kind == PickerKind::Toc {
+                                        14.5
+                                    } else {
+                                        14.0
+                                    });
                                     let hint_galley =
                                         painter.layout_no_wrap(item.hint.clone(), FontId::monospace(12.0), c(theme.text_dim));
                                     let hint_w = hint_galley.size().x;
                                     let label = painter.layout_no_wrap(item.label.clone(), font, label_color);
                                     let label_w = label.size().x;
-                                    let label_clip = egui::Rect::from_min_max(rect.min, egui::pos2(rect.right() - hint_w - 18.0, rect.bottom()));
+                                    let label_clip = egui::Rect::from_min_max(
+                                        rect.min,
+                                        egui::pos2(rect.right() - hint_w - 18.0, rect.bottom()),
+                                    );
                                     painter.with_clip_rect(label_clip).galley(
                                         egui::pos2(x, rect.center().y - label.size().y / 2.0),
                                         label,
@@ -290,18 +302,31 @@ impl Picker {
                                         let dx = x + label_w + 10.0;
                                         let room = rect.right() - hint_w - 20.0 - dx;
                                         if room > 30.0 {
-                                            let detail = painter.layout(item.detail.clone(), FontId::proportional(12.5), c(theme.text_dim), room);
+                                            let detail = painter.layout(
+                                                item.detail.clone(),
+                                                FontId::proportional(12.5),
+                                                c(theme.text_dim),
+                                                room,
+                                            );
                                             let first_row_h = detail.rows.first().map(|r| r.height()).unwrap_or(14.0);
-                                            painter.with_clip_rect(egui::Rect::from_min_max(
-                                                egui::pos2(dx, rect.top()),
-                                                egui::pos2(dx + room, rect.bottom()),
-                                            ))
-                                            .galley(egui::pos2(dx, rect.center().y - first_row_h / 2.0), detail, c(theme.text_dim));
+                                            painter
+                                                .with_clip_rect(egui::Rect::from_min_max(
+                                                    egui::pos2(dx, rect.top()),
+                                                    egui::pos2(dx + room, rect.bottom()),
+                                                ))
+                                                .galley(
+                                                    egui::pos2(dx, rect.center().y - first_row_h / 2.0),
+                                                    detail,
+                                                    c(theme.text_dim),
+                                                );
                                         }
                                     }
                                     if !item.hint.is_empty() {
                                         painter.galley(
-                                            egui::pos2(rect.right() - hint_w - 10.0, rect.center().y - hint_galley.size().y / 2.0),
+                                            egui::pos2(
+                                                rect.right() - hint_w - 10.0,
+                                                rect.center().y - hint_galley.size().y / 2.0,
+                                            ),
                                             hint_galley,
                                             c(theme.text_dim),
                                         );
@@ -316,7 +341,8 @@ impl Picker {
                                     ui.label(RichText::new("  No matches").color(c(theme.text_dim)));
                                     ui.add_space(8.0);
                                 }
-                            });
+                            },
+                        );
                         self.scroll_to_selected = false;
                         ui.add_space(4.0);
                         ui.label(RichText::new(keymap_hint).small().color(c(theme.text_dim)));

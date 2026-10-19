@@ -95,6 +95,7 @@ commands! {
     "reload_config" => "Reload config.toml and init.lua",
     "lua" ("code") => "Run a Lua snippet",
     "echo" ("text") => "Show a message",
+    "open_url" ("url") => "Open a URL in the default browser",
     "screenshot" ("path") => "Save a PNG of the window",
     "quit" => "Quit folio",
     "q" => "Quit folio",

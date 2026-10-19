@@ -171,7 +171,7 @@ pub fn recolor(pixels: &mut [u8], mode: PageMode, colors: Colors) {
         PageMode::Normal => {}
         PageMode::Custom => {
             let (fg, bg) = (colors.fg.0, colors.bg.0);
-            for px in pixels.chunks_exact_mut(4) {
+            for px in pixels.as_chunks_mut::<4>().0 {
                 // Map by luminance so colored figures stay readable.
                 let l = (px[0] as u32 * 54 + px[1] as u32 * 183 + px[2] as u32 * 19) >> 8;
                 for c in 0..3 {
@@ -183,7 +183,7 @@ pub fn recolor(pixels: &mut [u8], mode: PageMode, colors: Colors) {
             }
         }
         PageMode::Dark => {
-            for px in pixels.chunks_exact_mut(4) {
+            for px in pixels.as_chunks_mut::<4>().0 {
                 // Invert lightness, keep hue: rgb' = rgb + (255 - max - min).
                 let (r, g, b) = (px[0] as i32, px[1] as i32, px[2] as i32);
                 let shift = 255 - r.max(g).max(b) - r.min(g).min(b);
