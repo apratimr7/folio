@@ -7,7 +7,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] **macOS: opening from Finder** doesn't load the file, because the Apple Event `odoc` isn't handled (winit
       doesn't expose it). Workaround: `open -a folio --args file.pdf`. Fix: a small `objc2` hook on
       `application:openURLs:`.
-- [ ] **CI hasn't run yet** (no remote). The Ubuntu job may need a newer poppler-glib than 24.04 ships.
+- [ ] CI passes (Linux, macOS arm64/x86_64), but the workflow's actions use Node 20 and need bumping
+      (`actions/checkout`, `actions/upload-artifact`).
 - [ ] **macOS build is untested on real hardware.** The code type-checks for `aarch64-apple-darwin`, and CI builds
       it, but nobody has run it yet. Check HiDPI (Retina) sharpness, Cmd-key bindings and font discovery.
 - [ ] After an auto-reload where the text reflowed (an edited LaTeX source), saved highlights keep their old
@@ -22,6 +23,29 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
 - [ ] PDF link-border annotations (red hyperref boxes) are drawn as authored; add an option to hide them.
 - [ ] No license chosen yet. Pick one before publishing.
+
+## From user testing (2026-10-20)
+
+- [ ] **Marks can't be deleted.** Add `Ctrl-d` in the `gm` marks list (like highlights and bookmarks), a
+      `delete_mark {char}` command, and `delete_marks` to clear all of them. Today the only options are
+      overwriting a mark or editing the state JSON.
+- [ ] **Visual mode can't start where you want.** `v` starts at the search match, then the ruler line, then the
+      first word on screen (usually the top). Add hint-based placement: `v` labels lines/words on screen and the
+      chosen label sets the start (like `f` for links). Keep the current fallbacks for when no hint is chosen
+      (e.g. `v` `v`). Also: no way to move the selection start without extending (only `o` swaps ends); consider a
+      caret mode where motions move a cursor until a second `v` anchors it.
+- [ ] **Lua API gaps:**
+  - [ ] Bookmarks and marks: read, add, delete (`folio.bookmarks()`, `folio.marks()`, …).
+  - [ ] Highlights: delete and recolor, plus create directly instead of only via `exec`.
+  - [ ] Timers: `folio.defer(ms, fn)` / `folio.every(ms, fn)`.
+  - [ ] Read config values (`folio.get(option)`), not only set them.
+  - [ ] Positions: text with boxes (`folio.page_words(n)` → `{text, x0, y0, x1, y1}`), the current scroll position,
+        and drawing overlays on pages from Lua.
+  - [ ] Richer hook arguments: `page` as a number; `highlight` as a table `{page, text, color, note}`.
+- [x] **Bugs from the Lua/automation test pass**: all fixed, see `CHANGELOG.md` [Unreleased] and
+      `docs/testing/2026-10-20-lua-api-report.md`. Still open from that pass:
+  - [ ] Debounce the `selection` hook (or add a `selection_done` event) for heavy handlers such as AI calls.
+  - [ ] Recheck `folio.clipboard` by hand (it can't be tested from the hidden test window).
 
 ## Next up
 

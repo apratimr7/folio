@@ -12,8 +12,12 @@ Scripts never mutate the app while it's in the middle of something. Read functio
 after your function returns, in order. In practice: write code top to bottom as usual, but `folio.state()`
 called right after `folio.exec("next_page")` still shows the old page.
 
-Errors in scripts show up as red notifications and never crash the reader. `print(...)` shows a notification
-and also writes to stderr.
+Errors in scripts show up as red notifications (the message only; the full traceback goes to stderr) and never
+crash the reader. A command that keeps calling itself through `folio.exec` is stopped after a few levels with a
+"command loop detected" error. `print(...)` shows a notification and also writes to stderr.
+
+`:reload_config` starts a fresh Lua state: `init.lua` runs again, script globals reset, and pending `spawn`
+callbacks from the old state are dropped.
 
 ## API
 
@@ -44,10 +48,10 @@ folio.on(event, function(arg) ... end)
 
 | event | argument |
 |---|---|
-| `open` | path of the opened document |
-| `page` | new current page (string, 1-based) |
-| `selection` | selected text, after a mouse drag or a visual-mode change |
-| `search` | the query, when a search is confirmed |
+| `open` | path of the opened document (canonical: symlinks resolved) |
+| `page` | new current page (string, 1-based). The first one fires after the saved position is restored. |
+| `selection` | selected text, after a mouse drag or **each** visual-mode change (debounce heavy work yourself) |
+| `search` | the query, when a search is confirmed in the prompt or started with `search …` from Lua/remote |
 | `highlight` | text of a new highlight |
 | `quit` | — |
 
@@ -57,7 +61,7 @@ folio.on(event, function(arg) ... end)
 |---|---|
 | `folio.state()` | `{ path, title, page, page_count, zoom, mode, selection, search, page_mode, theme }` |
 | `folio.selection()` | selected text or `nil` |
-| `folio.page_text(n?)` | text of page `n` (default: current), words re-joined across hyphenated line breaks |
+| `folio.page_text(n?)` | text of page `n` (default: current), words re-joined across hyphenated line breaks; `nil` outside `1..page_count` |
 | `folio.outline()` | `{ { title, depth, page }, ... }` |
 | `folio.highlights()` | `{ { page, text, color, note }, ... }` |
 
@@ -68,8 +72,8 @@ folio.on(event, function(arg) ... end)
 | `folio.notify(msg, level?)` | toast; `level` is `"info"`, `"warn"` or `"error"` |
 | `folio.show(title, text)` | open the side text panel with this content |
 | `folio.append(text)` | append to the text panel (streaming output) |
-| `folio.prompt(label, function(input) end, initial?)` | single-line input at the bottom |
-| `folio.pick(title, items, function(index) end)` | fuzzy picker over a list of strings |
+| `folio.prompt(label, function(input) end, initial?)` | single-line input at the bottom; `input` is `nil` if the user pressed Esc |
+| `folio.pick(title, items, function(index, item) end)` | fuzzy picker over a list of strings; `nil, nil` on Esc |
 | `folio.clipboard(text)` | copy to the clipboard |
 
 ### System

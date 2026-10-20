@@ -108,7 +108,7 @@ impl Script {
 
     pub fn run_file(&self, path: &std::path::Path) -> Result<(), String> {
         let code = std::fs::read_to_string(path).map_err(|e| e.to_string())?;
-        self.lua.load(&code).set_name(format!("@{}", path.display())).exec().map_err(|e| e.to_string())
+        self.lua.load(&code).set_name(format!("@{}", path.display())).exec().map_err(|e| short_error(&e))
     }
 
     pub fn run_code(&self, code: &str) -> Result<String, String> {
@@ -121,7 +121,7 @@ impl Script {
             .or_else(|_| self.lua.load(code).set_name("=lua").eval::<MultiValue>());
         match res {
             Ok(values) => Ok(values.iter().map(display_value).collect::<Vec<_>>().join("\t")),
-            Err(e) => Err(e.to_string()),
+            Err(e) => Err(short_error(&e)),
         }
     }
 
@@ -151,7 +151,7 @@ impl Script {
 
     fn report(&self, r: mlua::Result<()>) {
         if let Err(e) = r {
-            self.shared.borrow_mut().effects.push(Effect::Notify(format!("lua: {e}"), Level::Error));
+            self.shared.borrow_mut().effects.push(Effect::Notify(format!("lua: {}", short_error(&e)), Level::Error));
         }
     }
 
@@ -190,6 +190,18 @@ impl Script {
             self.call_fn(job.callback, (job.stdout, job.stderr, job.code));
         }
         any
+    }
+}
+
+/// The error message without the stack traceback, which goes to stderr instead.
+fn short_error(e: &mlua::Error) -> String {
+    let full = e.to_string();
+    match full.split_once("\nstack traceback:") {
+        Some((msg, _)) => {
+            eprintln!("folio: lua: {full}");
+            msg.trim().to_string()
+        }
+        None => full,
     }
 }
 
@@ -334,7 +346,11 @@ fn install_api(
             "page_text",
             lua.create_function(move |_, page: Option<usize>| {
                 let s = shared.borrow();
-                let page = page.map(|p| p.saturating_sub(1)).unwrap_or(s.snapshot.page);
+                let page = match page {
+                    Some(0) => return Ok(None),
+                    Some(p) => p - 1,
+                    None => s.snapshot.page,
+                };
                 Ok(s.doc.as_ref().filter(|d| page < d.page_count()).map(|d| {
                     let t = d.page_text(page);
                     t.span_text(0, t.chars.len())

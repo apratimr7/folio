@@ -86,6 +86,9 @@ pub struct App {
     pub drag_anchor: Option<(usize, usize)>,
     pub lua_picker_cb: Option<FnId>,
     pub ipc: Option<crate::ipc::Server>,
+    /// Nesting depth of `process_effects` (scripts calling commands calling scripts).
+    pub effect_depth: u32,
+    pub quit_emitted: bool,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -93,8 +96,15 @@ pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Leve
     if level == Level::Error {
         eprintln!("folio: {text}");
     }
+    // Repeating the newest message just refreshes it.
+    if let Some(last) = toasts.last_mut()
+        && last.text == text
+    {
+        last.born = Instant::now();
+        return;
+    }
     toasts.push(Toast { text, level, born: Instant::now() });
-    if toasts.len() > 5 {
+    if toasts.len() > 8 {
         toasts.remove(0);
     }
 }
@@ -173,6 +183,8 @@ impl App {
             drag_anchor: None,
             lua_picker_cb: None,
             ipc: None,
+            effect_depth: 0,
+            quit_emitted: false,
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -199,6 +211,8 @@ impl App {
         let ctx = self.ctx.clone();
         match Script::new(move || ctx.request_repaint()) {
             Ok(s) => {
+                // Scripts may call folio.state() at load time.
+                s.set_snapshot(self.snapshot());
                 let init = config::config_dir().join("init.lua");
                 if init.exists()
                     && let Err(e) = s.run_file(&init)
@@ -308,6 +322,14 @@ impl App {
         self.process_effects();
     }
 
+    /// The `quit` hook, at most once, whether we quit by command or the window is closed.
+    pub fn emit_quit(&mut self) {
+        if !self.quit_emitted {
+            self.quit_emitted = true;
+            self.emit("quit", String::new());
+        }
+    }
+
     pub fn emit(&mut self, event: &str, arg: String) {
         if self.script.as_ref().is_some_and(|s| s.has_hook(event)) {
             self.with_script(|s| s.emit(event, arg));
@@ -326,17 +348,33 @@ impl App {
         }
     }
 
+    /// Apply queued script effects. Effects can run commands that call Lua again, which queues
+    /// more effects; a runaway chain (a command that execs itself) is cut off instead of
+    /// overflowing the stack.
     pub fn process_effects(&mut self) {
+        const MAX_NESTING: u32 = 24;
+        if self.effect_depth >= MAX_NESTING {
+            if let Some(s) = &self.script {
+                let dropped = s.take_effects();
+                if let Some(Effect::Exec(line)) = dropped.iter().find(|e| matches!(e, Effect::Exec(_))) {
+                    let line = line.clone();
+                    notify_into(&mut self.toasts, format!("lua: command loop detected, stopped at '{line}'"), Level::Error);
+                }
+            }
+            return;
+        }
+        self.effect_depth += 1;
         for _ in 0..64 {
-            let Some(s) = &self.script else { return };
+            let Some(s) = &self.script else { break };
             let effects = s.take_effects();
             if effects.is_empty() {
-                return;
+                break;
             }
             for e in effects {
                 self.apply_effect(e);
             }
         }
+        self.effect_depth -= 1;
     }
 
     fn apply_effect(&mut self, e: Effect) {
@@ -553,7 +591,7 @@ impl App {
             "recent_files" => return self.open_recent_picker(),
             "quit" | "q" => {
                 self.save_all();
-                self.emit("quit", String::new());
+                self.emit_quit();
                 self.ctx.send_viewport_cmd(egui::ViewportCommand::Close);
                 return;
             }
@@ -660,12 +698,16 @@ impl App {
             "screen_down" => d.view.scroll_by((vh - 40.0) * n, animate),
             "screen_up" => d.view.scroll_by(-(vh - 40.0) * n, animate),
             "next_page" | "prev_page" => {
-                let cur = d.view.pos_at(0.0);
-                // If the page top is above the viewport, "prev" goes to its own top first.
+                // Page jumps park the view half a gap above the page, so probe one gap below the
+                // scroll target (not the animated position) to find the page we're really on.
+                let probe = d.view.target_y + d.view.gap;
+                let cur = d.view.page_at(probe);
+                let into_page = probe - d.view.page_top(cur);
                 let delta = n as i64 * if name == "next_page" { 1 } else { -1 };
-                let mut page = (cur.page as i64 + delta).clamp(0, d.view.page_count() as i64 - 1) as usize;
-                if name == "prev_page" && cur.y > 5.0 && n as i64 == 1 {
-                    page = cur.page;
+                let mut page = (cur as i64 + delta).clamp(0, d.view.page_count() as i64 - 1) as usize;
+                // Scrolled into a page: "prev" goes to its own top first.
+                if name == "prev_page" && into_page > d.view.gap * 1.5 && n as i64 == 1 {
+                    page = cur;
                 }
                 d.view.goto(DocPos { page, y: 0.0 }, 0.0, animate);
                 d.view.target_y -= d.view.gap * 0.5;
@@ -739,6 +781,8 @@ impl App {
                 } else {
                     let origin = d.view.pos_at(0.0);
                     d.start_search(args.to_string(), backward, origin, true);
+                    self.emit("search", args.to_string());
+                    return;
                 }
             }
             "next_match" | "prev_match" => {
@@ -1317,7 +1361,15 @@ impl App {
         let Some(p) = &mut self.picker else { return };
         match ev {
             PickerEvent::None => {}
-            PickerEvent::Close => self.picker = None,
+            PickerEvent::Close => {
+                let kind = p.kind;
+                self.picker = None;
+                if kind == PickerKind::Lua
+                    && let Some(cb) = self.lua_picker_cb.take()
+                {
+                    self.with_script(|s| s.call_fn(cb, ()));
+                }
+            }
             PickerEvent::QueryChanged => {
                 if p.kind == PickerKind::Files {
                     refresh_files(p);
@@ -1392,7 +1444,12 @@ impl App {
                     }
                     _ => {
                         if let Some(item) = cur {
-                            self.accept_item(item.data);
+                            if let PickData::Lua(cb, idx) = item.data {
+                                self.lua_picker_cb = None;
+                                self.with_script(|s| s.call_fn(cb, ((idx + 1) as i64, item.label)));
+                            } else {
+                                self.accept_item(item.data);
+                            }
                         }
                     }
                 }
@@ -1428,9 +1485,7 @@ impl App {
             }
             PickData::Mark(c) => self.run_line(&format!("goto_mark {c}"), None),
             PickData::Theme(t) => self.set_theme(&t),
-            PickData::Lua(cb, idx) => {
-                self.with_script(|s| s.call_fn(cb, ((idx + 1) as i64,)));
-            }
+            PickData::Lua(..) => {} // handled in picker_event, which still has the label
             PickData::None => {}
         }
     }
@@ -1496,6 +1551,11 @@ impl App {
 
     pub fn prompt_cancel(&mut self) {
         let Some(p) = self.prompt.take() else { return };
+        if let PromptKind::Lua(cb) = p.kind {
+            // Tell the script the user canceled.
+            self.with_script(|s| s.call_fn(cb, ()));
+            return;
+        }
         if let PromptKind::Search { .. } = p.kind
             && let Some(d) = &mut self.doc
         {

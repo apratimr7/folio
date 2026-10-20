@@ -29,13 +29,19 @@ impl eframe::App for App {
 
         if ctx.input(|i| i.viewport().close_requested()) {
             self.save_all();
+            self.emit_quit();
         }
         self.poll_workers(&ctx);
         self.poll_jobs();
         let remote: Vec<String> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
         for line in remote {
-            for cmd in line.split(';') {
-                self.run_line(cmd, None);
+            // `;` separates commands, except inside Lua code.
+            if crate::commands::split(&line).0 == "lua" {
+                self.run_line(&line, None);
+            } else {
+                for cmd in line.split(';') {
+                    self.run_line(cmd, None);
+                }
             }
         }
         self.handle_keys(&ctx);
@@ -149,6 +155,15 @@ fn chords(events: &[Event]) -> Vec<Chord> {
                     suppress_text = true;
                 }
             }
+            // egui-winit turns Ctrl/Cmd + X/C/V into clipboard events instead of key presses.
+            Event::Cut | Event::Copy | Event::Paste(_) => {
+                let key = match ev {
+                    Event::Cut => "x",
+                    Event::Copy => "c",
+                    _ => "v",
+                };
+                out.push(Chord { key: key.into(), ctrl: true, alt: false, shift: false });
+            }
             Event::Text(t) => {
                 if suppress_text {
                     suppress_text = false;
@@ -203,7 +218,9 @@ impl App {
                     h.typed.pop();
                 }
             }
-            (_, Some(ch)) if ch.is_alphanumeric() => self.hint_input(ch),
+            (_, Some(ch)) if ch.is_alphanumeric() || self.cfg.general.hint_chars.contains(ch.to_ascii_lowercase()) => {
+                self.hint_input(ch)
+            }
             _ => d.hints = None,
         }
     }
@@ -325,8 +342,9 @@ impl App {
                     Err(e) => reload_err = Some(format!("reload: {e:#}")),
                 }
             }
+            // Wait for the first frame to restore the saved position before reporting pages.
             let page = d.view.current_page();
-            if page != d.last_page {
+            if !d.first_frame && page != d.last_page {
                 d.last_page = page;
                 page_changed = Some(page);
             }
@@ -984,8 +1002,8 @@ impl App {
             .anchor(Align2::RIGHT_BOTTOM, Vec2::new(-14.0, -bottom))
             .interactable(false)
             .show(ctx, |ui| {
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::Max), |ui| {
-                    for toast in self.toasts.iter().rev() {
+                ui.with_layout(egui::Layout::top_down(egui::Align::Max), |ui| {
+                    for toast in &self.toasts {
                         let age = toast.born.elapsed().as_secs_f32();
                         let alpha = ((life.as_secs_f32() - age) / 0.4).clamp(0.0, 1.0);
                         let bar = match toast.level {
@@ -993,26 +1011,41 @@ impl App {
                             Level::Warn => t.search_match,
                             Level::Error => t.search_current,
                         };
-                        ui.set_opacity(alpha);
-                        egui::Frame::new()
-                            .fill(c(t.surface_alt))
-                            .stroke(Stroke::new(1.0, c(t.border)))
-                            .corner_radius(radius(&t))
-                            .inner_margin(egui::Margin { left: 12, right: 12, top: 7, bottom: 7 })
-                            .show(ui, |ui| {
-                                ui.set_max_width(420.0);
-                                ui.horizontal(|ui| {
-                                    let (r, _) = ui.allocate_exact_size(Vec2::new(3.0, 16.0), Sense::hover());
-                                    ui.painter().rect_filled(r, 2.0, with_alpha(bar, 255));
-                                    ui.add(egui::Label::new(RichText::new(&toast.text).color(c(t.text))).wrap());
+                        ui.scope(|ui| {
+                            ui.set_opacity(alpha);
+                            egui::Frame::new()
+                                .fill(c(t.surface_alt))
+                                .stroke(Stroke::new(1.0, c(t.border)))
+                                .corner_radius(radius(&t))
+                                .inner_margin(egui::Margin { left: 12, right: 12, top: 7, bottom: 7 })
+                                .show(ui, |ui| {
+                                    ui.set_max_width(420.0);
+                                    ui.horizontal(|ui| {
+                                        let (r, _) = ui.allocate_exact_size(Vec2::new(3.0, 16.0), Sense::hover());
+                                        ui.painter().rect_filled(r, 2.0, with_alpha(bar, 255));
+                                        ui.add(egui::Label::new(RichText::new(toast_text(&toast.text)).color(c(t.text))).wrap());
+                                    });
                                 });
-                            });
+                        });
                         ui.add_space(6.0);
                     }
                 });
             });
         ctx.request_repaint_after(Duration::from_millis(100));
     }
+}
+
+/// At most 4 lines / 240 chars, so a long error can't push the stack off screen.
+/// Errors are printed in full to stderr.
+fn toast_text(text: &str) -> String {
+    let mut out: String = text.lines().take(4).collect::<Vec<_>>().join("\n");
+    if out.chars().count() > 240 {
+        out = out.chars().take(240).collect();
+    }
+    if out.len() < text.trim_end().len() {
+        out.push('…');
+    }
+    out
 }
 
 fn banner(painter: &egui::Painter, rect: Rect, t: &crate::config::Theme, text: &str) {

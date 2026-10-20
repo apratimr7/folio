@@ -29,7 +29,7 @@ back up or process.
 | `restore_position` | `true` | reopen documents where you left off |
 | `render_threads` | `2` | background render workers |
 | `render_oversample` | `1.0` | render above screen density (sharper, more memory) |
-| `hint_chars` | `"asdfghjklqwertyuiop"` | alphabet for hint labels |
+| `hint_chars` | `"asdfghjklqwertyuiop"` | alphabet for hint labels (any typeable characters, e.g. `"jkl;"`) |
 | `key_timeout_ms` | `600` | wait for a longer sequence (`g` vs `gg`) before running the shorter one |
 | `ui_font_size` | `14` | |
 | `ui_font` | auto | path to a TTF/OTF. Default: Inter, Noto Sans, Cantarell (via fontconfig), or the system font on macOS |

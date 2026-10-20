@@ -5,6 +5,26 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Fixed
+- `J` / `next_page` moved only one page; later presses stayed put. It now steps every time, including during smooth
+  scrolling, and with counts (`3J`).
+- A Lua command that called itself through `folio.exec` crashed folio (stack overflow). Runaway chains are now
+  stopped with a "command loop detected" error.
+- `<C-x>`, `<C-c>` and `<C-v>` (Cmd on macOS) can be bound. egui delivered them as clipboard events. The visual-mode
+  `Ctrl-c` copy works again.
+- The `quit` hook runs when the window is closed (not only for the `quit` command), and only once.
+- `folio.page_text(0)` returns `nil` instead of page 1.
+- Hint labels can use any characters from `hint_chars` (e.g. `;`), not just letters and digits.
+- Notifications: up to 8 are kept, repeats collapse into one, long messages are truncated so they stay on screen,
+  and Lua errors show the message without the stack traceback (the full trace goes to stderr).
+
+### Changed
+- `folio.state()` is filled in while `init.lua` runs, so `mode` and `theme` are no longer empty.
+- The `search` hook also fires for `search …` run from Lua or `--remote`.
+- The first `page` hook fires after the saved position is restored, not for page 1.
+- `--remote` doesn't split `lua …` lines on `;`.
+- `folio.prompt` calls back with `nil` when canceled. `folio.pick` passes `(index, item)`, or `nil` when canceled.
+
 ## [0.1.0] — 2026-10-19
 
 First release.
