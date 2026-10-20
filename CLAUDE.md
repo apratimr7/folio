@@ -5,15 +5,30 @@ physics researcher (AdS/CFT, black holes) who reads papers and books and writes 
 keyboard-centric, clean modern UI that's customizable, extensible by scripting (Lua), and designed for research
 reading. **AI features come next** (see `ROADMAP.md` § 0.3).
 
-Version 0.1.0 was built and tested on Linux (Arch, Hyprland/Wayland). **Work continues on macOS.**
+Version 0.1.0 (plus the fixes under `[Unreleased]` in `CHANGELOG.md`) was built and tested on Linux (Arch,
+Hyprland/Wayland). **Work continues on macOS.**
+
+## Status as of 2026-10-20
+
+- The user tested all basic commands by hand. They work, except two gaps logged in `TODO.md` under
+  "From user testing": marks can't be deleted, and visual mode can't start where you want.
+- A full Lua API / automation / customization test pass found 7 bugs. **All are fixed and re-verified**
+  (`docs/testing/2026-10-20-lua-api-report.md`, `CHANGELOG.md` [Unreleased]). Still open from it: debouncing the
+  `selection` hook, and a manual `folio.clipboard` check.
+- CI passes on Linux, macOS arm64 (`macos-15`) and macOS x86_64 (`macos-15-intel`). The zipped `.app` is an
+  artifact of each run (`gh run download <id> -n folio-macos-macos-15`).
+- The user's own priorities, in their words so far: first get it running on the Mac, then decide between AI
+  features and SyncTeX (they write LaTeX/Typst).
 
 ## Start here on the Mac
 
-1. Build it: `./scripts/build-macos.sh` (needs Xcode CLT, Homebrew, rustup; installs `poppler` and `pkg-config` via
+1. Build it: `./scripts/build-macos.sh`. Or skip building and use the CI artifact:
+   `gh run download -n folio-macos-macos-15` (latest run), unzip, then right-click → Open (not notarized).
+   To build yourself, run `./scripts/build-macos.sh` (needs Xcode CLT, Homebrew, rustup; installs `poppler` and `pkg-config` via
    brew). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`. If pkg-config can't find poppler:
    `export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"`.
-2. The macOS build has **never been run on real hardware**. It type-checks for `aarch64-apple-darwin` and that's all.
-   Verify first, and fix what breaks:
+2. The macOS build **compiles and passes tests in CI but has never been run on a real Mac**. Verify first, and fix
+   what breaks:
    - Retina sharpness: tiles are rendered at `zoom * pixels_per_point`, and the page origin is snapped to physical pixels.
    - Cmd as Ctrl: `ui/frame.rs::chords()` maps `modifiers.command` to `ctrl`. Check `Cmd-d`, `Cmd-q`, and that
      plain `Ctrl` still works.
@@ -21,8 +36,8 @@ Version 0.1.0 was built and tested on Linux (Arch, Hyprland/Wayland). **Work con
    - Smooth trackpad scrolling and pinch zoom (`canvas` in `ui/frame.rs`).
    - The IPC socket is in `$TMPDIR` (no `XDG_RUNTIME_DIR` on macOS). Stale-socket cleanup is Linux-only by design.
 3. Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
-4. CI (`.github/workflows/build.yml`) has never run. Check the Actions tab after a push. The Ubuntu job may need a
-   newer poppler-glib.
+4. CI (`.github/workflows/build.yml`) is green. Its actions still use Node 20 (deprecation warning); bump
+   `actions/checkout` / `actions/upload-artifact` when convenient.
 
 ## Commands
 
@@ -34,6 +49,16 @@ cargo build --release
 ./target/debug/folio --debug outline|text|links|refs|findref|search FILE [PAGE|QUERY]   # headless backend checks (PAGE is 0-based)
 ./target/debug/folio --list-commands > /tmp/c.md   # regenerate docs/COMMANDS.md body after changing commands
 ```
+
+### Testing without the user
+
+The Lua/automation pass used this approach, and it's the template for regression tests. Put a test `init.lua` (and
+`config.toml`) in throwaway dirs (`XDG_CONFIG_HOME`/`XDG_DATA_HOME`). Have it log `PASS`/`FAIL` lines to a file,
+expose test commands (`folio.command("t_read", …)`), trigger them with `folio --remote`, and check UI results with
+the in-app `screenshot`. Never write to the user's real `~/.config/folio` or `~/.local/share/folio` in tests.
+On Linux, real key events were sent with Hyprland's `send_shortcut` to a window on a temporary headless output.
+On macOS, test through `--remote` and unit tests, and ask the user before driving their screen.
+A built-in `folio --test-script` mode that runs such a suite headlessly would be a good addition for CI.
 
 ### Seeing and driving the running app
 
@@ -89,7 +114,8 @@ while the user is typing. Use the in-app `screenshot` command.
 
 ## Likely next work
 
-1. Get the Mac build running and fix platform issues (above).
+1. Get the Mac build running and fix platform issues (above). Then `TODO.md` "From user testing": mark deletion,
+   hint-based visual-mode start, and the Lua API gaps.
 2. AI features (ROADMAP 0.3): assistant panel, explain selection or equation with context resolved through smart
    references, citation lookup (arXiv/Semantic Scholar), summaries, semantic search. Build them as commands and
    expose them in Lua. Ask the user which provider and model to use, and keep anything from leaving the machine
