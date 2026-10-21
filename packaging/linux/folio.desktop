@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=folio
+GenericName=PDF Reader
+Comment=Keyboard-first PDF reader for technical documents
+Exec=folio %f
+Terminal=false
+MimeType=application/pdf;
+Categories=Office;Viewer;
+Keywords=pdf;reader;viewer;papers;

@@ -1,7 +1,11 @@
 # folio
 
+[![build](https://github.com/apratimr7/folio/actions/workflows/build.yml/badge.svg)](https://github.com/apratimr7/folio/actions/workflows/build.yml)
+[![release](https://img.shields.io/github/v/release/apratimr7/folio)](https://github.com/apratimr7/folio/releases/latest)
+[![license: AGPL-3.0](https://img.shields.io/badge/license-AGPL--3.0-blue)](LICENSE)
+
 A keyboard-first PDF reader for technical documents, in the spirit of [sioyek](https://sioyek.info), written in
-Rust. **v0.1.0** (plus unreleased work on `main`). Linux, macOS and Windows.
+Rust. For Linux, macOS and Windows.
 
 - **Smart references.** Press `s` and every `[12]`, `Fig. 3`, `Eq. (2.4)`, `(2.8)`, `Theorem 1.2` or `Sect. 3.1` on
   screen gets a label. Type it to jump to the definition, or type it in uppercase to **peek** at it in a floating
@@ -18,15 +22,22 @@ Rust. **v0.1.0** (plus unreleased work on `main`). Linux, macOS and Windows.
   AI features.
 - **One self-contained binary**: MuPDF and Lua are compiled in, so nothing else needs to be installed.
 
-## Quick start
+## Install
 
-**Download:** every CI run builds Linux, macOS (Apple Silicon and Intel) and Windows binaries. Open the repository's
-[Actions](https://github.com/apratimr7/folio/actions) tab, pick the latest green run, and download the artifact for
-your platform (a GitHub login with access to the repository is needed). On macOS, right-click → *Open* the first
-time (the app isn't notarized). On Windows, SmartScreen may warn about an unknown publisher: *More info* → *Run
-anyway*.
+Download the archive for your platform from the **[latest release](https://github.com/apratimr7/folio/releases/latest)**.
+Each is a single self-contained program; nothing else needs to be installed.
 
-**Build it yourself:**
+| Platform | Download | Then |
+|---|---|---|
+| **macOS**, Apple Silicon (M1–M4) | `folio-…-macos-arm64.zip` | Unzip, move `folio.app` to Applications. The first time, right-click it → *Open* (the app isn't notarized yet). |
+| **macOS**, Intel | `folio-…-macos-x86_64.zip` | Same as above. |
+| **Windows** 10/11 (x86_64) | `folio-…-windows-x86_64.zip` | Unzip anywhere and run `folio.exe`. If SmartScreen says the publisher is unknown: *More info* → *Run anyway*. |
+| **Linux** (x86_64, glibc 2.35+) | `folio-…-linux-x86_64.tar.gz` | `tar xzf folio-*.tar.gz`, then `install -Dm755 folio-*/folio ~/.local/bin/folio` (and optionally the `.desktop` file to `~/.local/share/applications/`). Needs the usual desktop libraries (`libxkbcommon`, OpenGL, Wayland or X11). |
+
+Open a PDF with `folio paper.pdf` (on macOS: `open -a folio --args paper.pdf`; opening from Finder by double-click
+isn't supported yet), or start `folio` and press `o`. Checksums are in `SHA256SUMS` on the release page.
+
+## Build from source
 
 ```sh
 # Linux (needs a C compiler, make and libclang; Debian/Ubuntu: apt install clang libclang-dev libxkbcommon-dev libgl1-mesa-dev)
@@ -70,6 +81,7 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 | [CHANGELOG.md](CHANGELOG.md) | versions and what changed |
 | [TODO.md](TODO.md) | known issues and next tasks |
 | [ROADMAP.md](ROADMAP.md) | future plans, including the AI features |
+| [CONTRIBUTING.md](CONTRIBUTING.md) | reporting bugs, building, testing, conventions |
 
 ## Status
 

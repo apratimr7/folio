@@ -73,3 +73,17 @@ runtime, which Windows 10 and 11 normally have (otherwise install the "Visual C+
 It uploads the Linux binary, the zipped `.app` bundles and the zipped Windows `.exe` as artifacts. Push to GitHub,
 or run the workflow manually, to get builds for platforms you don't have. A build cache keeps later runs fast; the
 first run on a runner compiles MuPDF and takes 5–25 minutes.
+
+## Releasing
+
+Releases are built by `.github/workflows/release.yml` when a version tag is pushed:
+
+1. Merge `dev` into `main` and wait for the `build` workflow to pass on all platforms.
+2. On `main`: set `version` in `Cargo.toml`, rename `[Unreleased]` in `CHANGELOG.md` to `[x.y.z] — date` (with a
+   short summary) and add an empty `[Unreleased]` above it. Commit.
+3. `git tag vx.y.z && git push origin main vx.y.z`.
+
+The workflow builds and tests Linux (on Ubuntu 22.04 for an older glibc), macOS arm64 and x86_64, and Windows,
+checks that the tag matches `Cargo.toml`, and publishes a GitHub Release with the four archives, `SHA256SUMS`, and
+that version's CHANGELOG section as the notes. `scripts/package-linux.sh`, `build-macos.sh` and `build-windows.ps1`
+make the same archives locally.

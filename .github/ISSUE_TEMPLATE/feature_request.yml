@@ -1,0 +1,11 @@
+name: Feature request
+description: An idea for folio
+labels: [enhancement]
+body:
+  - type: textarea
+    id: idea
+    attributes:
+      label: What would you like folio to do?
+      description: Describe the reading or writing situation it would help with.
+    validations:
+      required: true

@@ -5,6 +5,13 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+## [0.2.0] — 2026-10-21
+
+First public release. folio now uses MuPDF (and is licensed AGPL-3.0-or-later), runs on Linux, macOS and Windows,
+and comes with a test suite. Highlights: smart references for Rudin-style books and left-numbered equations,
+choosing where a selection starts with row → word hints, readable links in dark mode, and many fixes from a full
+macOS test pass.
+
 ### Added
 - **Windows build.** folio builds and runs on Windows (x86_64, MSVC); CI tests it and uploads a zipped `folio.exe`.
   Config lives in `%APPDATA%\folio` and data in `%LOCALAPPDATA%\folio`. Remote control isn't available on Windows yet.

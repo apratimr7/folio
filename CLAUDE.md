@@ -44,6 +44,13 @@ the xkbcommon/GL headers; macOS needs the Xcode command-line tools; Windows need
 LLVM. Ready-made binaries for all platforms are the artifacts of the latest green CI run
 (`gh run download -n folio-<platform>…`, see `docs/BUILDING.md`).
 
+## Releasing
+
+Version tags publish releases: see `docs/BUILDING.md` § Releasing (bump `Cargo.toml`, cut the CHANGELOG section,
+`git tag vx.y.z && git push origin main vx.y.z`; `.github/workflows/release.yml` does the rest). v0.2.0 (2026-10-21)
+is the first public release; the repository is public from then on, so never commit personal paths, documents or
+anything private (tests use `tests/fixtures/` only).
+
 ## Working on the Mac
 
 - Build: `./scripts/build-macos.sh` (Xcode CLT and rustup with Rust ≥ 1.95; the first build compiles MuPDF from C
