@@ -1,4 +1,4 @@
-# Build folio.exe on Windows and zip it with the README and license.
+# Build the Windows .exe (named after the package in Cargo.toml) and zip it with the README and license.
 #
 #   ./scripts/build-windows.ps1
 #
@@ -10,14 +10,15 @@ Set-Location (Join-Path $PSScriptRoot "..")
 cargo build --release
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
+$name = (Select-String -Path Cargo.toml -Pattern '^name = "(.+)"').Matches[0].Groups[1].Value
 $version = (Select-String -Path Cargo.toml -Pattern '^version = "(.+)"').Matches[0].Groups[1].Value
-$dir = "target/release/folio-$version-windows"
+$dir = "target/release/$name-$version-windows"
 Remove-Item -Recurse -Force $dir -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $dir | Out-Null
-Copy-Item target/release/folio.exe, README.md, LICENSE $dir
-$zip = "target/release/folio-$version-windows-x86_64.zip"
+Copy-Item "target/release/$name.exe", README.md, LICENSE $dir
+$zip = "target/release/$name-$version-windows-x86_64.zip"
 Remove-Item -Force $zip -ErrorAction SilentlyContinue
 Compress-Archive -Path $dir -DestinationPath $zip
 Write-Host ""
-Write-Host "built $dir\folio.exe"
+Write-Host "built $dir\$name.exe"
 Write-Host "      $zip"

@@ -337,7 +337,7 @@ impl App {
             Ok(s) => {
                 self.global.touch_recent(&s.path, &s.title, s.state.pos.map(|p| p.page).unwrap_or(0));
                 self.global.save();
-                self.ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} — folio", s.title)));
+                self.ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} — {}", s.title, config::APP_NAME)));
                 self.doc = Some(s);
                 self.mode = Mode::Normal;
                 self.picker = None;

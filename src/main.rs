@@ -62,7 +62,7 @@ fn main() -> Result<()> {
             Ok(())
         }
         Some("-V" | "--version") => {
-            println!("folio {}", env!("CARGO_PKG_VERSION"));
+            println!("{} {}", config::APP_NAME, env!("CARGO_PKG_VERSION"));
             Ok(())
         }
         Some("--debug") => debug(&args[1..]),
@@ -75,8 +75,8 @@ fn main() -> Result<()> {
 fn run(path: Option<PathBuf>) -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
-            .with_title("folio")
-            .with_app_id("folio")
+            .with_title(config::APP_NAME)
+            .with_app_id(config::APP_NAME)
             .with_inner_size([1100.0, 900.0])
             .with_min_inner_size([360.0, 300.0]),
         // Window size and position are restored from eframe's own state file, next to folio's data.
@@ -84,7 +84,7 @@ fn run(path: Option<PathBuf>) -> Result<()> {
         persistence_path: Some(config::data_dir().join("window.ron")),
         ..Default::default()
     };
-    eframe::run_native("folio", options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, path)))))
+    eframe::run_native(config::APP_NAME, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, path)))))
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 

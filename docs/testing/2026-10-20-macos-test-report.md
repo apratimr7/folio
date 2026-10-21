@@ -51,7 +51,7 @@ Cosmetic: one clippy warning (`Rgba::rgba` has the same name as its type). `foli
 ## Couldn't be tested here
 
 - **Retina sharpness.** The only display is 1×. At 1× tiles map 1:1 and look sharp, including at 400%. Check on a Retina screen.
-- **Trackpad gestures** (pinch zoom, smooth two-finger scrolling) can't be synthesized. The user checked them by hand and they work.
+- **Trackpad gestures** (pinch zoom, smooth two-finger scrolling) can't be synthesized. They were checked by hand and work.
 - The **Intel build** and a Mac **without Homebrew** (the bundled-dylib case). `otool -L` shows that every non-system library resolves into `Contents/Frameworks`.
 - `open_url`. I didn't run it, so that no browser would open.
 

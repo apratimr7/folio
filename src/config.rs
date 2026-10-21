@@ -102,6 +102,10 @@ pub struct Config {
     pub keys: BTreeMap<String, BTreeMap<String, String>>,
 }
 
+/// The program's name, from `Cargo.toml`. Folders, socket names and the window use it, so renaming the package
+/// renames those too (see "Renaming" in `CLAUDE.md`).
+pub const APP_NAME: &str = env!("CARGO_PKG_NAME");
+
 /// The user's home directory (`HOME`, or `USERPROFILE` on Windows).
 pub fn home() -> PathBuf {
     std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
@@ -119,7 +123,7 @@ pub fn config_dir() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| windows_dir("APPDATA"))
         .unwrap_or_else(|| home().join(".config"))
-        .join("folio")
+        .join(APP_NAME)
 }
 
 /// `$XDG_DATA_HOME/folio`, else `~/.local/share/folio`, or `%LOCALAPPDATA%\folio` on Windows.
@@ -128,7 +132,7 @@ pub fn data_dir() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| windows_dir("LOCALAPPDATA"))
         .unwrap_or_else(|| home().join(".local/share"))
-        .join("folio")
+        .join(APP_NAME)
 }
 
 impl Config {

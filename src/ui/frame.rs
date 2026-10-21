@@ -756,7 +756,7 @@ impl App {
         let painter = ui.painter_at(rect);
         let t = &self.theme;
         let center = rect.center() - Vec2::new(0.0, 60.0);
-        painter.text(center, Align2::CENTER_BOTTOM, "folio", FontId::proportional(56.0), c(t.text));
+        painter.text(center, Align2::CENTER_BOTTOM, crate::config::APP_NAME, FontId::proportional(56.0), c(t.text));
         painter.text(
             center + Vec2::new(0.0, 14.0),
             Align2::CENTER_TOP,

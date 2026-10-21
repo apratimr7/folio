@@ -1,35 +1,34 @@
 # folio — context for Claude
 
-folio is a keyboard-first PDF reader for technical documents (a sioyek-like tool), written in Rust. The owner is a
-physics researcher (AdS/CFT, black holes) who reads papers and books and writes LaTeX/Typst. Goals: a fully
-keyboard-centric, clean modern UI that's customizable, extensible by scripting (Lua), and designed for research
-reading. **AI features come next** (see `ROADMAP.md` § 0.3).
+folio is a keyboard-first PDF reader for technical documents (a sioyek-like tool), written in Rust, for people who
+read papers and books and write LaTeX/Typst. Goals: a fully keyboard-centric, clean modern UI that's customizable,
+extensible by scripting (Lua), and designed for research reading. **AI features come next** (see `ROADMAP.md` § 0.3).
 
 Version 0.1.0 plus everything under `[Unreleased]` in `CHANGELOG.md`. Runs on Linux, macOS and Windows.
 Branches: `main` is the latest state everyone should use (CI green on all platforms); `dev` is where work happens
-and is merged into `main` once CI passes. Both are on GitHub (`apratimr7/folio`, private).
+and is merged into `main` once CI passes. The repository is public on GitHub (`apratimr7/folio`) since v0.2.0.
 
 ## Status as of 2026-10-21
 
 - **PDF engine is MuPDF** (was poppler), statically linked; folio has no runtime dependencies. License is
   **AGPL-3.0-or-later** because of MuPDF. `vendor/mupdf` is a patched mupdf-rs (see `FOLIO-PATCHES.md`).
 - **Platforms:** Linux (the original; hand-tested before the MuPDF switch, CI since), macOS Apple Silicon (full
-  hand test pass + CI), macOS Intel (CI), **Windows** (new: CI builds, tests and zips `folio.exe`; the user's
-  friends are about to test it; remote control and signal handling are Unix-only so far).
+  hand test pass + CI), macOS Intel (CI), **Windows** (new: CI builds, tests and zips `folio.exe`; first testers
+  are trying it; remote control and signal handling are Unix-only so far).
 - **Tests:** 140 unit + 18 CLI tests on committed fixture PDFs (`docs/TESTING.md`), run in CI on all platforms.
 - Test passes so far: Lua/automation on Linux and a full macOS pass (`docs/testing/`). Their bugs are fixed except
   what's still open in `TODO.md`.
-- **Recently added:** visual mode starts with row → word hints (`v`; `v v` = old start); the user is happy with it,
-  so caret mode is only an optional idea. Dark-mode link contrast, window-geometry memory, drag and drop, clean
+- **Recently added:** visual mode starts with row → word hints (`v`; `v v` = old start); this works well, so caret
+  mode is only an optional idea. Dark-mode link contrast, window-geometry memory, drag and drop, clean
   quit on Cmd-Q and signals, config warnings, link-scheme safety, marks deletion.
 - `TODO.md` is the single list of open work. Notable sections: "Configuration space (to build in one go)" lists
-  every hard-coded tunable (dimming amounts first, as the user asked) to be built in one pass later; "Later →
+  every hard-coded tunable (dimming amounts first) to be built in one pass later; "Later →
   Polishing" holds a sensible default config and UI enhancements. `ROADMAP.md` is the long term.
-- Unchecked on real hardware: Retina sharpness, the Intel Mac build, Windows (friends), a real Finder drag, and
-  window-geometry restore (the user runs the AeroSpace tiling WM, which places windows itself).
-- **The user's priorities, in their words so far:** get it solid on each platform; then decide between AI features
-  and SyncTeX (they write LaTeX/Typst); build the configuration space in one go; then new window/tab, polishing
-  (default config, UI enhancements, blur), and a website last. Ask before starting a big item.
+- Unchecked on real hardware: Retina sharpness, the Intel Mac build, Windows (with first testers), a real Finder
+  drag, and window-geometry restore (not observable under a tiling window manager).
+- **Priorities:** get it solid on each platform; then decide between AI features and SyncTeX; build the
+  configuration space in one go; then new window/tab, polishing (default config, UI enhancements, blur), and a
+  website last. Ask before starting a big item.
 
 ## Picking it up on another machine
 
@@ -51,11 +50,26 @@ Version tags publish releases: see `docs/BUILDING.md` § Releasing (bump `Cargo.
 is the first public release; the repository is public from then on, so never commit personal paths, documents or
 anything private (tests use `tests/fixtures/` only).
 
+## Renaming
+
+The name may change. What follows the package name in `Cargo.toml` automatically: the binary, `config::APP_NAME`
+(config and data folders, socket names, the `<NAME>_SOCKET` variable, window title and app ID, the home screen),
+the macOS bundle and its Info.plist (`@NAME@`), the Linux `.desktop` file (`packaging/linux/app.desktop.in`) and the
+release archive names. A rename still needs, by hand:
+
+1. `name` (and `repository`) in `Cargo.toml`; rename the GitHub repository (GitHub redirects the old URL).
+2. Text: `grep -rn -i folio` over `*.md`, `src/main.rs` (`USAGE`), log prefixes (`eprintln!("folio: …")`), the
+   workflow artifact names and release title, and the badges/links in `README.md`.
+3. The Lua global `folio` is API: keep `folio` as an alias of the new name so existing `init.lua` files work.
+4. Existing users' folders move with the name (`~/.config/<name>`, `~/.local/share/<name>`): on first start,
+   move or read the old `folio` folders if the new ones don't exist.
+5. The macOS bundle ID (`io.github.apratimr7.<name>`) changes too, so macOS treats it as a new app.
+
 ## Working on the Mac
 
 - Build: `./scripts/build-macos.sh` (Xcode CLT and rustup with Rust ≥ 1.95; the first build compiles MuPDF from C
   and takes a few minutes). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`. If the default
-  toolchain is older, use `cargo +1.95 …` (on the user's Mac, `stable` is 1.85, so `+1.95` is needed).
+  toolchain is older, use `cargo +1.95 …`.
 - CI artifact instead of building: `gh run download -n folio-macos-macos-15`, unzip, right-click → Open.
 - Cmd works as Ctrl (`ui/frame.rs::chords()`); Cmd-Q goes through the app menu, so quitting is handled in
   `App::on_exit` too. The remote socket is in `$TMPDIR`; macOS limits socket paths to 104 bytes.
@@ -91,7 +105,7 @@ On Linux, real key events were sent with Hyprland's `send_shortcut` to a window 
 On macOS, start isolated instances in the background with `open -g -n -a <app> --env XDG_CONFIG_HOME=… --env
 XDG_DATA_HOME=… --args file.pdf` (a plain background process steals focus), target them with
 `FOLIO_SOCKET=$TMPDIR/folio-<pid>.sock`, and ask the user before sending real keys (System Events) or mouse events
-(CGEvents). AeroSpace tiles every window, so window geometry can't be set or observed there.
+(CGEvents). Under a tiling window manager, window geometry can't be set or observed.
 A built-in `folio --test-script` mode that runs such a suite headlessly would be a good addition for CI.
 
 ### Seeing and driving the running app

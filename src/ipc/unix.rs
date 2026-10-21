@@ -10,13 +10,15 @@ use std::time::SystemTime;
 use anyhow::{Context, Result};
 use crossbeam_channel::{Receiver, Sender};
 
+use crate::config::APP_NAME;
+
 pub fn socket_dir() -> PathBuf {
     std::env::var_os("XDG_RUNTIME_DIR").map(PathBuf::from).unwrap_or_else(std::env::temp_dir)
 }
 
 /// The "current instance" socket, a symlink to the per-process one.
 pub fn default_socket() -> PathBuf {
-    socket_dir().join("folio.sock")
+    socket_dir().join(format!("{APP_NAME}.sock"))
 }
 
 pub struct Server {
@@ -27,7 +29,7 @@ pub struct Server {
 impl Server {
     pub fn start(wake: impl Fn() + Send + 'static) -> Result<Self> {
         cleanup_stale();
-        let path = socket_dir().join(format!("folio-{}.sock", std::process::id()));
+        let path = socket_dir().join(format!("{APP_NAME}-{}.sock", std::process::id()));
         let _ = std::fs::remove_file(&path);
         let listener = UnixListener::bind(&path).with_context(|| format!("bind {}", path.display()))?;
         // Anyone who can connect can run commands (and Lua), so keep it private.
@@ -58,7 +60,9 @@ fn instance_sockets() -> Vec<PathBuf> {
         .flatten()
         .filter(|e| {
             let name = e.file_name().to_string_lossy().to_string();
-            name.strip_prefix("folio-").and_then(|n| n.strip_suffix(".sock")).is_some_and(|pid| pid.parse::<u32>().is_ok())
+            name.strip_prefix(&format!("{APP_NAME}-"))
+                .and_then(|n| n.strip_suffix(".sock"))
+                .is_some_and(|pid| pid.parse::<u32>().is_ok())
         })
         .map(|e| e.path())
         .collect()
@@ -108,7 +112,7 @@ fn serve(listener: UnixListener, tx: Sender<String>, wake: impl Fn()) {
 
 /// Client side of `folio --remote`.
 pub fn send(commands: &[String]) -> Result<()> {
-    let explicit = std::env::var_os("FOLIO_SOCKET").map(PathBuf::from);
+    let explicit = std::env::var_os(socket_env()).map(PathBuf::from);
     let path = explicit.clone().unwrap_or_else(default_socket);
     let mut stream = match UnixStream::connect(&path) {
         Ok(s) => s,
@@ -126,4 +130,9 @@ pub fn send(commands: &[String]) -> Result<()> {
     let mut acks = String::new();
     BufReader::new(stream).read_line(&mut acks)?;
     Ok(())
+}
+
+/// `FOLIO_SOCKET` (upper-case program name): targets a specific instance.
+fn socket_env() -> String {
+    format!("{}_SOCKET", APP_NAME.to_uppercase())
 }

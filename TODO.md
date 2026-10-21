@@ -113,7 +113,7 @@ Low:
       (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
 - [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
 - [x] **Remember window size and position** (eframe persistence, `window.ron` in the data dir). Saving is
-      verified; restoring couldn't be observed here because a tiling window manager (AeroSpace) places windows.
+      verified; restoring couldn't be observed on the test machine because a tiling window manager places windows.
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).
 - [ ] **Scrollbar / position indicator** you can drag, at least on hover.
 - [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).
@@ -180,7 +180,7 @@ System and safety:
       Lua need to address a window/tab. ROADMAP "Later" also lists a split view of the same document.
 - [x] **Windows build.** Builds and tests in CI (`windows-latest`, MSVC) and uploads a zipped `folio.exe`
       (`scripts/build-windows.ps1`). Config in `%APPDATA%\folio`, data in `%LOCALAPPDATA%\folio`. Follow-ups:
-  - [ ] First manual run on real Windows machines (friends are testing): rendering, fonts (Segoe UI fallback),
+  - [ ] First manual runs on real Windows machines (first testers): rendering, fonts (Segoe UI fallback),
         HiDPI scaling, keyboard (Ctrl bindings, AltGr layouts), file picker with `C:\` paths and backslashes,
         drag and drop, opening links, window-geometry restore, `--help`/`--debug` output in a terminal.
   - [ ] Remote control: a named-pipe transport for `ipc/` (`--remote`, `FOLIO_SOCKET`), e.g. with the

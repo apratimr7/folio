@@ -16,13 +16,13 @@ jobs:
       matrix:
         include:
           - os: ubuntu-22.04 # older glibc (2.35), so the binary also runs on older distributions
-            asset: target/release/folio-*-linux-*.tar.gz
+            asset: target/release/*-linux-*.tar.gz
           - os: macos-15 # Apple Silicon
-            asset: target/release/folio-*-macos-*.zip
+            asset: target/release/*-macos-*.zip
           - os: macos-15-intel
-            asset: target/release/folio-*-macos-*.zip
+            asset: target/release/*-macos-*.zip
           - os: windows-latest
-            asset: target/release/folio-*-windows-*.zip
+            asset: target/release/*-windows-*.zip
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v5
@@ -62,7 +62,7 @@ jobs:
           fi
       - name: Checksums and release notes
         run: |
-          cd dist && sha256sum folio-* > SHA256SUMS && cat SHA256SUMS && cd ..
+          cd dist && sha256sum *.tar.gz *.zip > SHA256SUMS && cat SHA256SUMS && cd ..
           version="${GITHUB_REF_NAME#v}"
           # The tag's section of CHANGELOG.md, without its heading.
           awk -v v="$version" '
