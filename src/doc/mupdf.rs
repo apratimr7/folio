@@ -9,7 +9,7 @@ use std::path::Path;
 use anyhow::{Context as _, Result, anyhow, bail};
 use mupdf::pdf::PdfDocument;
 use mupdf::text_page::TextBlockType;
-use mupdf::{Colorspace, Device, DestinationKind, Document, IRect, Matrix, MetadataName, Pixmap, TextPageFlags};
+use mupdf::{Colorspace, DestinationKind, Device, Document, IRect, Matrix, MetadataName, Pixmap, TextPageFlags};
 
 use super::{Backend, Bitmap, DocPos, Link, LinkTarget, Metadata, OutlineItem, PageText, Rect};
 
