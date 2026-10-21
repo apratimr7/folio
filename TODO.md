@@ -64,7 +64,7 @@ Medium:
 
 - [ ] **3. Smart refs miss number-first theorem styles** (`2.36 Theorem.`, Rudin/Apostol style): 17/21 unresolved
       in Rudin. Accept `<label> <Kind>` at the line start in `refs::find_definitions`.
-- [ ] **4. Dark page mode makes hyperref blue links nearly invisible** (~1.6:1 contrast). Clamp a minimum lightness
+- [x] **4. Dark page mode makes hyperref blue links nearly invisible** (~1.6:1 contrast). Clamp a minimum lightness
       for saturated colors in `render::recolor`.
 - [ ] **5. `clear` doesn't close an open picker or prompt** (matters for remote/Lua/agents); hints then start under
       the picker. Close both, calling Lua prompt/pick callbacks with `nil`.

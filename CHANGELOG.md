@@ -21,6 +21,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 - `folio.prompt` calls back with `nil` when canceled. `folio.pick` passes `(index, item)`, or `nil` when canceled.
 
 ### Fixed
+- Dark pages: hyperref blue (and other saturated) links were nearly invisible (about 1.6:1 contrast). Strongly
+  colored pixels are now lifted to a readable luminance with their hue kept (≥ 4.5:1, unit-tested).
 - The `mupdf` bindings crashed on damaged outlines (an item without a title) and panicked on links MuPDF can't
   resolve. Patched in `vendor/mupdf` (see `FOLIO-PATCHES.md` there).
 - `J` / `next_page` moved only one page; later presses stayed put. It now steps every time, including during smooth
