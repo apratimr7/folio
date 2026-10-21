@@ -1,0 +1,111 @@
+% refs.pdf: smart references, outline, page labels, links and search normalization.
+% Facts the tests rely on are listed in ../README.md; keep them in sync.
+\pdfinfoomitdate=1
+\pdftrailerid{}
+\pdfsuppressptexinfo=-1
+\documentclass[11pt]{article}
+\pdfpagewidth=\paperwidth \pdfpageheight=\paperheight % US letter whatever the local TeX default
+\usepackage[T1]{fontenc}
+\usepackage{amsmath,amsthm}
+\usepackage{cite}
+\renewcommand{\citepunct}{,\ }
+\usepackage[pdftitle={Folio Test Paper},pdfauthor={Folio Tests},pdfcreator={},pdfproducer={}]{hyperref}
+\numberwithin{equation}{section}
+\newtheorem{theorem}{Theorem}[section]
+\newtheorem{lemma}{Lemma}[section]
+\begin{document}
+
+\pagenumbering{gobble}
+\begin{center}
+  {\LARGE Folio Test Paper}\\[1em]
+  Title page without a page number
+\end{center}
+\clearpage
+
+\pagenumbering{roman}
+\section*{Preface}
+This front matter is numbered with roman numerals.
+\clearpage
+\noindent The second page of front matter.
+\clearpage
+
+\pagenumbering{arabic}
+\section{Introduction}
+\label{sec:intro}
+Early work on the subject is reviewed in the survey \cite{alpha}, and the classic
+results are due to two groups \cite{beta,gamma}. Several later papers extend this \cite{delta,epsilon,zeta}.
+The data are collected in Table~\ref{tab:data}, and the setup is drawn in Figure~\ref{fig:setup}.
+The main result is Theorem~\ref{thm:main}, and the key estimate is Lemma~\ref{lem:key}.
+
+\subsection{Motivation}
+Every field of physics has its ``quoted'' folklore -- and its exceptions---like this one.
+The word renormaliza-\newline tion is broken across two lines on purpose.
+Details are in Section~\ref{sec:results}. More is available at
+\url{https://example.org/folio} and in \href{file:notes.txt}{the local notes}.
+
+\begin{theorem}
+\label{thm:first}
+Every bounded sequence has a convergent subsequence.
+\end{theorem}
+
+\begin{theorem}
+\label{thm:main}
+The main estimate holds for all inputs.
+\end{theorem}
+
+\begin{figure}[h]
+  \centering
+  \fbox{\rule{0pt}{2cm}\hspace{4cm}}
+  \caption{The experimental setup.}
+  \label{fig:setup}
+\end{figure}
+\clearpage
+
+\section{Results}
+\label{sec:results}
+The basic relation is
+\begin{equation}
+  \label{eq:basic}
+  E = m c^2
+\end{equation}
+and a second relation follows:
+\begin{equation}
+  \label{eq:second}
+  F = m a .
+\end{equation}
+Combining Eq.~\eqref{eq:basic} with the second one gives the claim, and
+the relation (2.1) is used again below.
+
+\begin{table}[h]
+  \centering
+  \caption{A first table.}
+  \begin{tabular}{cc} a & b \\ c & d \end{tabular}
+\end{table}
+
+\begin{table}[h]
+  \centering
+  \caption{Measured data.}
+  \label{tab:data}
+  \begin{tabular}{cc} 1 & 2 \\ 3 & 4 \end{tabular}
+\end{table}
+\clearpage
+
+\section{Proofs}
+\begin{lemma}
+\label{lem:key}
+The key estimate is sharp.
+\end{lemma}
+\begin{proof}
+Use Theorem~\ref{thm:first} and the relation in Eq.~\eqref{eq:second}.
+\end{proof}
+\clearpage
+
+\begin{thebibliography}{9}
+\bibitem{alpha} A. Alpha, A survey of the field, J. Tests 1 (2020).
+\bibitem{beta} B. Beta, Classic results, J. Tests 2 (2021).
+\bibitem{gamma} C. Gamma, More classic results, J. Tests 3 (2021).
+\bibitem{delta} D. Delta, An extension, J. Tests 4 (2022).
+\bibitem{epsilon} E. Epsilon, Another extension, J. Tests 5 (2023).
+\bibitem{zeta} Z. Zeta, The last extension, J. Tests 6 (2024).
+\end{thebibliography}
+\end{document}

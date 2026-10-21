@@ -9,12 +9,13 @@ jobs:
   linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
-      - run: sudo apt-get update && sudo apt-get install -y libpoppler-glib-dev libcairo2-dev libxkbcommon-dev libgl1-mesa-dev
+      - uses: actions/checkout@v5
+      - run: sudo apt-get update && sudo apt-get install -y clang libclang-dev libxkbcommon-dev libgl1-mesa-dev
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # MuPDF's C build is the slow part
       - run: cargo test
       - run: cargo build --release
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: folio-linux-x86_64
           path: target/release/folio
@@ -25,12 +26,12 @@ jobs:
         os: [macos-15, macos-15-intel] # arm64, x86_64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - run: brew install poppler pkg-config dylibbundler
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2 # MuPDF's C build is the slow part
       - run: cargo test
-      - run: BUNDLE=1 ./scripts/build-macos.sh
-      - uses: actions/upload-artifact@v4
+      - run: ./scripts/build-macos.sh
+      - uses: actions/upload-artifact@v5
         with:
           name: folio-macos-${{ matrix.os }}
           path: target/release/folio-*-macos-*.zip

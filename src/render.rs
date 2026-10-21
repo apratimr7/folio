@@ -1,6 +1,6 @@
 //! Background page rendering.
 //!
-//! Each worker thread owns its own document instance (poppler objects are not
+//! Each worker thread owns its own document instance (MuPDF documents are not
 //! `Send`). The UI publishes the full set of tiles it currently wants, most
 //! important first; workers pick the first one that is not done yet, so stale
 //! requests (pages scrolled past, old zoom levels) are dropped for free.
@@ -188,8 +188,9 @@ pub fn recolor(pixels: &mut [u8], mode: PageMode, colors: Colors) {
                 let (r, g, b) = (px[0] as i32, px[1] as i32, px[2] as i32);
                 let shift = 255 - r.max(g).max(b) - r.min(g).min(b);
                 let (bg, fg) = (colors.bg.0, colors.fg.0);
-                for (c, v) in [r, g, b].into_iter().enumerate() {
-                    let inv = (v + shift).clamp(0, 255);
+                let inv = [r, g, b].map(|v| (v + shift).clamp(0, 255));
+                let inv = lift_dark_colors(inv);
+                for (c, inv) in inv.into_iter().enumerate() {
                     // Compress into the theme's [page_bg, page_fg] range to avoid pure black/white.
                     let lo = bg[c].min(fg[c]) as i32;
                     let hi = bg[c].max(fg[c]) as i32;
@@ -197,5 +198,66 @@ pub fn recolor(pixels: &mut [u8], mode: PageMode, colors: Colors) {
                 }
             }
         }
+    }
+}
+
+/// Lightness inversion keeps saturated colors like hyperref blue (HSL lightness 0.5) as dark as they were, which
+/// leaves links nearly invisible on a dark page. Lift strongly colored pixels toward white, keeping their hue,
+/// until they reach a readable luminance. Grays (text, rules) are left alone.
+fn lift_dark_colors([r, g, b]: [i32; 3]) -> [i32; 3] {
+    const MIN_LUMA: i32 = 150;
+    let chroma = r.max(g).max(b) - r.min(g).min(b);
+    let luma = (r * 54 + g * 183 + b * 19) >> 8;
+    if chroma < 64 || luma >= MIN_LUMA {
+        return [r, g, b];
+    }
+    // c' = c + (255 - c) * t raises luma linearly in t.
+    let t = ((MIN_LUMA - luma) * 256) / (255 - luma).max(1);
+    [r, g, b].map(|c| c + ((255 - c) * t) / 256)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// WCAG relative luminance of an sRGB color.
+    fn luminance(c: [u8; 3]) -> f64 {
+        let lin = |v: u8| {
+            let v = v as f64 / 255.0;
+            if v <= 0.04045 { v / 12.92 } else { ((v + 0.055) / 1.055).powf(2.4) }
+        };
+        0.2126 * lin(c[0]) + 0.7152 * lin(c[1]) + 0.0722 * lin(c[2])
+    }
+
+    fn contrast(a: [u8; 3], b: [u8; 3]) -> f64 {
+        let (la, lb) = (luminance(a), luminance(b));
+        (la.max(lb) + 0.05) / (la.min(lb) + 0.05)
+    }
+
+    fn dark(rgb: [u8; 3]) -> [u8; 3] {
+        let theme = crate::config::Theme::preset("midnight");
+        let mut px = [rgb[0], rgb[1], rgb[2], 255];
+        recolor(&mut px, PageMode::Dark, Colors { fg: theme.page_fg, bg: theme.page_bg });
+        [px[0], px[1], px[2]]
+    }
+
+    #[test]
+    fn dark_mode_links_stay_readable() {
+        let bg = dark([255, 255, 255]);
+        for (name, link) in [("hyperref blue", [0, 0, 255]), ("red", [255, 0, 0]), ("magenta", [255, 0, 255])] {
+            let c = contrast(dark(link), bg);
+            assert!(c >= 4.5, "{name} link has contrast {c:.2} on the dark page");
+        }
+    }
+
+    #[test]
+    fn dark_mode_keeps_text_and_hue() {
+        let (bg, text) = (dark([255, 255, 255]), dark([0, 0, 0]));
+        assert!(contrast(text, bg) >= 7.0, "body text contrast {:.2}", contrast(text, bg));
+        let blue = dark([0, 0, 255]);
+        assert!(blue[2] > blue[0] + 60 && blue[2] > blue[1] + 60, "blue should stay blue: {blue:?}");
+        // Mid gray is left as the plain inversion.
+        let gray = dark([128, 128, 128]);
+        assert!((gray[0] as i32 - gray[1] as i32).abs() < 6, "gray should stay neutral: {gray:?}");
     }
 }

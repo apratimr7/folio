@@ -4,13 +4,13 @@
 //! are deliberately *not* `Send`: every thread that needs document access opens
 //! its own instance through [`open`].
 
-mod poppler;
+mod mupdf;
 
 use std::path::Path;
 
 use anyhow::Result;
 
-pub use self::poppler::PopplerDoc;
+pub use self::mupdf::MupdfDoc;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
 pub struct Rect {
@@ -215,5 +215,5 @@ pub trait Backend {
 }
 
 pub fn open(path: &Path) -> Result<Box<dyn Backend>> {
-    Ok(Box::new(PopplerDoc::open(path)?))
+    Ok(Box::new(MupdfDoc::open(path)?))
 }

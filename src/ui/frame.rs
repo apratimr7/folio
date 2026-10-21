@@ -15,7 +15,7 @@ use crate::doc::{self, DocPos};
 use crate::keymap::Chord;
 use crate::render::{TILE, TileKey, tile_rect};
 use crate::script::Level;
-use crate::session::{HintMode, Session, TexEntry};
+use crate::session::{HintAction, HintMode, Session, TexEntry};
 use crate::text::Response as TextResponse;
 
 const TEXTURE_BUDGET: usize = 320 << 20;
@@ -43,6 +43,10 @@ impl eframe::App for App {
                     self.run_line(cmd, None);
                 }
             }
+        }
+        // A file dropped onto the window opens like `o` would.
+        if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf())) {
+            self.open(&path);
         }
         self.handle_keys(&ctx);
         self.tick_keys();
@@ -103,6 +107,12 @@ impl eframe::App for App {
         if self.cfg.general.auto_reload && self.doc.is_some() {
             ctx.request_repaint_after(Duration::from_millis(900));
         }
+    }
+
+    /// Every exit path, including Cmd-Q and Apple Event quits that never raise `close_requested`.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.save_all();
+        self.emit_quit();
     }
 }
 
@@ -211,6 +221,10 @@ impl App {
 
     fn hint_key(&mut self, chord: &Chord) {
         let Some(d) = &mut self.doc else { return };
+        let selecting = d.hints.as_ref().is_some_and(|h| h.mode == HintMode::Select);
+        if selecting && chord.as_char() == Some('v') && !self.cfg.general.hint_chars.contains('v') {
+            return self.visual_without_hints();
+        }
         match (chord.key.as_str(), chord.as_char()) {
             ("Esc", _) => d.hints = None,
             ("Backspace", _) => {
@@ -569,21 +583,56 @@ impl App {
 
             // Hints.
             if let Some(hints) = &d.hints {
+                // Choosing a word: dim the page except the chosen row, so labels above it can cover the line before.
+                let row = hints
+                    .items
+                    .iter()
+                    .filter(|i| i.page == p && matches!(i.action, HintAction::Word(..)))
+                    .map(|i| to_screen(&i.rect))
+                    .reduce(|a, b| a.union(b));
+                if let Some(row) = row {
+                    let row = row.expand2(Vec2::new(0.0, 3.0));
+                    let dim = Color32::from_black_alpha(if theme.dark { 90 } else { 60 });
+                    painter.rect_filled(Rect::from_min_max(pr.min, Pos2::new(pr.right(), row.top())), 0.0, dim);
+                    painter.rect_filled(Rect::from_min_max(Pos2::new(pr.left(), row.bottom()), pr.max), 0.0, dim);
+                }
+                let mut placed: Vec<Rect> = Vec::new();
                 for item in hints.items.iter().filter(|i| i.page == p && i.label.starts_with(&hints.typed)) {
                     let sr = to_screen(&item.rect);
-                    painter.rect_stroke(
-                        sr.expand(1.0),
-                        2.0,
-                        Stroke::new(1.0, with_alpha(theme.hint_bg, 200)),
-                        StrokeKind::Outside,
-                    );
-                    let font = FontId::monospace(12.5);
+                    let word = matches!(item.action, HintAction::Word(..));
+                    if word {
+                        // Underline the candidate word; the badge sits just above it, so the line stays readable.
+                        let y = sr.bottom() + 1.0;
+                        painter.line_segment(
+                            [Pos2::new(sr.left(), y), Pos2::new(sr.right(), y)],
+                            Stroke::new(1.5, with_alpha(theme.hint_bg, 220)),
+                        );
+                    } else if !matches!(item.action, HintAction::Line(_)) {
+                        painter.rect_stroke(
+                            sr.expand(1.0),
+                            2.0,
+                            Stroke::new(1.0, with_alpha(theme.hint_bg, 200)),
+                            StrokeKind::Outside,
+                        );
+                    }
+                    let font = FontId::monospace(if word { 11.0 } else { 12.5 });
                     let rest = &item.label[hints.typed.len()..];
                     let galley = painter.layout_no_wrap(rest.to_uppercase(), font, c(theme.hint_text));
                     let size = galley.size() + Vec2::new(8.0, 2.0);
-                    // Left of the target, vertically centered: stays readable in dense lists.
-                    let x = (sr.left() - size.x - 3.0).max(pr.left() + 2.0).min(sr.left());
-                    let at = Pos2::new(x, sr.center().y - size.y * 0.5);
+                    let at = if word {
+                        // Centered above the word; lifted a level when it would overlap a neighbor's label.
+                        let base = Pos2::new(sr.center().x - size.x * 0.5, sr.top() - size.y - 1.0);
+                        let at = (0..4)
+                            .map(|level| base - Vec2::new(0.0, level as f32 * (size.y + 1.0)))
+                            .find(|at| !placed.iter().any(|r| r.intersects(Rect::from_min_size(*at, size))))
+                            .unwrap_or(base);
+                        placed.push(Rect::from_min_size(at, size).expand(1.0));
+                        at
+                    } else {
+                        // Left of the target (in the margin for lines), vertically centered.
+                        let x = (sr.left() - size.x - 3.0).max(pr.left() + 2.0).min(sr.left());
+                        Pos2::new(x, sr.center().y - size.y * 0.5)
+                    };
                     let badge = Rect::from_min_size(at, size);
                     painter.rect_filled(badge.translate(Vec2::new(0.0, 1.5)), 4.0, Color32::from_black_alpha(80));
                     painter.rect_filled(badge, 4.0, c(theme.hint_bg));
@@ -616,6 +665,10 @@ impl App {
             let label = match d.hints.as_ref().unwrap().mode {
                 HintMode::Jump => "type a label to jump  ·  SHIFT+label to peek  ·  Esc cancels",
                 HintMode::Peek => "type a label to peek  ·  Esc cancels",
+                HintMode::Select if d.hints.as_ref().unwrap().items.iter().any(|i| matches!(i.action, HintAction::Word(..))) => {
+                    "type a word's label to start selecting there  ·  Esc cancels"
+                }
+                HintMode::Select => "pick a line, then a word  ·  v starts at the top  ·  Esc cancels",
             };
             banner(&painter, rect, &theme, label);
         }
@@ -684,10 +737,7 @@ impl App {
             if let Some(link) = link {
                 match link.target {
                     doc::LinkTarget::Page(pos) => d.jump(pos, 0.1, false),
-                    doc::LinkTarget::Uri(uri) => {
-                        crate::app::open_external(&uri);
-                        self.notify(format!("Opening {uri}"));
-                    }
+                    doc::LinkTarget::Uri(uri) => self.open_link(&uri),
                     doc::LinkTarget::Other(s) => self.notify(format!("Unsupported link: {s}")),
                 }
             }
@@ -761,7 +811,7 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let page = d.view.current_page();
                 let n = d.view.page_count();
-                let label = d.backend.page_label(page).filter(|l| *l != (page + 1).to_string());
+                let label = d.backend.page_label(page).filter(|l| !l.trim().is_empty() && *l != (page + 1).to_string());
                 let pct = if n > 1 { page * 100 / (n - 1) } else { 100 };
                 ui.label(RichText::new(format!("{pct}%")).color(c(t.text_dim)).monospace());
                 let page_text = match label {

@@ -1,0 +1,17 @@
+% twocol.pdf: one two-column page; every word in the left column is "alpha", in the right one "omega".
+\pdfinfoomitdate=1
+\pdftrailerid{}
+\pdfsuppressptexinfo=-1
+\documentclass[11pt,twocolumn]{article}
+\pdfpagewidth=\paperwidth \pdfpageheight=\paperheight % US letter whatever the local TeX default
+\usepackage[T1]{fontenc}
+\newcommand{\words}[1]{#1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 #1 }
+\begin{document}
+\words{alpha}\words{alpha}\words{alpha}\words{alpha}
+
+\words{alpha}\words{alpha}\words{alpha}\words{alpha}
+\newpage
+\words{omega}\words{omega}\words{omega}\words{omega}
+
+\words{omega}\words{omega}\words{omega}\words{omega}
+\end{document}

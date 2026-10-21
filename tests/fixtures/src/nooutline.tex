@@ -1,0 +1,28 @@
+% nooutline.pdf: no hyperref and no bookmarks, a dotted table of contents, numbered section headings.
+\pdfinfoomitdate=1
+\pdftrailerid{}
+\pdfsuppressptexinfo=-1
+\documentclass[11pt]{article}
+\pdfpagewidth=\paperwidth \pdfpageheight=\paperheight % US letter whatever the local TeX default
+\usepackage[T1]{fontenc}
+\setcounter{tocdepth}{2}
+\begin{document}
+
+\tableofcontents
+\clearpage
+
+\section{Introduction}
+The setup is explained in Section 3.2, and the fine print is in Section 3.2.1.
+\clearpage
+
+\section{Background}
+Nothing to see here.
+
+\section{Analysis}
+\subsection{Setup}
+Some setup.
+\subsection{Results}
+The results are stated here.
+\subsubsection{Details}
+The details follow.
+\end{document}

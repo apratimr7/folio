@@ -5,45 +5,37 @@ physics researcher (AdS/CFT, black holes) who reads papers and books and writes 
 keyboard-centric, clean modern UI that's customizable, extensible by scripting (Lua), and designed for research
 reading. **AI features come next** (see `ROADMAP.md` § 0.3).
 
-Version 0.1.0 (plus the fixes under `[Unreleased]` in `CHANGELOG.md`) was built and tested on Linux (Arch,
-Hyprland/Wayland). **Work continues on macOS.**
+Version 0.1.0 plus everything under `[Unreleased]` in `CHANGELOG.md`. Built and tested on Linux (Arch,
+Hyprland/Wayland) and macOS (Apple Silicon). Development happens on the `dev` branch; `main` is the last release.
 
 ## Status as of 2026-10-20
 
-- The user tested all basic commands by hand. They work, except two gaps logged in `TODO.md` under
-  "From user testing": marks can't be deleted, and visual mode can't start where you want.
-- A full Lua API / automation / customization test pass found 7 bugs. **All are fixed and re-verified**
-  (`docs/testing/2026-10-20-lua-api-report.md`, `CHANGELOG.md` [Unreleased]). Still open from it: debouncing the
-  `selection` hook, and a manual `folio.clipboard` check.
-- CI passes on Linux, macOS arm64 (`macos-15`) and macOS x86_64 (`macos-15-intel`). The zipped `.app` is an
-  artifact of each run (`gh run download <id> -n folio-macos-macos-15`).
-- The user's own priorities, in their words so far: first get it running on the Mac, then decide between AI
-  features and SyncTeX (they write LaTeX/Typst).
+- **PDF engine is MuPDF** (was poppler), statically linked; folio has no runtime dependencies. License is
+  **AGPL-3.0-or-later** because of MuPDF. `vendor/mupdf` is a patched mupdf-rs (see `FOLIO-PATCHES.md`).
+- Two test passes are done: Lua/automation on Linux (`docs/testing/2026-10-20-lua-api-report.md`) and a full macOS
+  pass (`docs/testing/2026-10-20-macos-test-report.md`). Their bugs are fixed except the ones still open in
+  `TODO.md` ("From macOS testing"). The user confirmed trackpad scrolling and pinch zoom by hand.
+- `TODO.md` is the single list of open issues, missing basics and next work. `ROADMAP.md` is the long term.
+- Unchecked on real hardware: Retina sharpness, the Intel build, opening via a Finder drag (drag and drop is
+  implemented), and window-geometry restore (the user runs the AeroSpace tiling WM, which places windows itself).
+- The user's priorities, in their words so far: get it solid on the Mac, then decide between AI features and
+  SyncTeX (they write LaTeX/Typst). Later: new window/tab, a Windows build, UI blur/appearance config, a website.
 
-## Start here on the Mac
+## Working on the Mac
 
-1. Build it: `./scripts/build-macos.sh`. Or skip building and use the CI artifact:
-   `gh run download -n folio-macos-macos-15` (latest run), unzip, then right-click → Open (not notarized).
-   To build yourself, run `./scripts/build-macos.sh` (needs Xcode CLT, Homebrew, rustup; installs `poppler` and `pkg-config` via
-   brew). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`. If pkg-config can't find poppler:
-   `export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"`.
-2. The macOS build **compiles and passes tests in CI but has never been run on a real Mac**. Verify first, and fix
-   what breaks:
-   - Retina sharpness: tiles are rendered at `zoom * pixels_per_point`, and the page origin is snapped to physical pixels.
-   - Cmd as Ctrl: `ui/frame.rs::chords()` maps `modifiers.command` to `ctrl`. Check `Cmd-d`, `Cmd-q`, and that
-     plain `Ctrl` still works.
-   - Font discovery (`ui/style.rs::find_font`): there's no fontconfig on macOS, so it falls back to `/System/Library/Fonts/SFNS.ttf`.
-   - Smooth trackpad scrolling and pinch zoom (`canvas` in `ui/frame.rs`).
-   - The IPC socket is in `$TMPDIR` (no `XDG_RUNTIME_DIR` on macOS). Stale-socket cleanup is Linux-only by design.
-3. Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
-4. CI (`.github/workflows/build.yml`) is green. Its actions still use Node 20 (deprecation warning); bump
-   `actions/checkout` / `actions/upload-artifact` when convenient.
+- Build: `./scripts/build-macos.sh` (Xcode CLT and rustup with Rust ≥ 1.95; the first build compiles MuPDF from C
+  and takes a few minutes). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`. If the default
+  toolchain is older, use `cargo +1.95 …`.
+- CI artifact instead of building: `gh run download -n folio-macos-macos-15`, unzip, right-click → Open.
+- Cmd works as Ctrl (`ui/frame.rs::chords()`); Cmd-Q goes through the app menu, so quitting is handled in
+  `App::on_exit` too. The remote socket is in `$TMPDIR`; macOS limits socket paths to 104 bytes.
+- Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
 
 ## Commands
 
 ```sh
 cargo build                      # dev profile is opt-level 1 (deps at 3), fast enough to use
-cargo test                       # keymap + view unit tests
+cargo test                       # unit + CLI tests on tests/fixtures (docs/TESTING.md); -- --ignored = known bugs
 cargo clippy && cargo fmt        # rustfmt.toml: max_width 130
 cargo build --release
 ./target/debug/folio --debug outline|text|links|refs|findref|search FILE [PAGE|QUERY]   # headless backend checks (PAGE is 0-based)
@@ -52,12 +44,18 @@ cargo build --release
 
 ### Testing without the user
 
+Prefer automated tests: `docs/TESTING.md` covers the suite, the fixture PDFs, and how to add a test for a bug.
+What needs the running app (the GUI, real input, `App` commands) is tested as follows.
+
 The Lua/automation pass used this approach, and it's the template for regression tests. Put a test `init.lua` (and
 `config.toml`) in throwaway dirs (`XDG_CONFIG_HOME`/`XDG_DATA_HOME`). Have it log `PASS`/`FAIL` lines to a file,
 expose test commands (`folio.command("t_read", …)`), trigger them with `folio --remote`, and check UI results with
 the in-app `screenshot`. Never write to the user's real `~/.config/folio` or `~/.local/share/folio` in tests.
 On Linux, real key events were sent with Hyprland's `send_shortcut` to a window on a temporary headless output.
-On macOS, test through `--remote` and unit tests, and ask the user before driving their screen.
+On macOS, start isolated instances in the background with `open -g -n -a <app> --env XDG_CONFIG_HOME=… --env
+XDG_DATA_HOME=… --args file.pdf` (a plain background process steals focus), target them with
+`FOLIO_SOCKET=$TMPDIR/folio-<pid>.sock`, and ask the user before sending real keys (System Events) or mouse events
+(CGEvents). AeroSpace tiles every window, so window geometry can't be set or observed there.
 A built-in `folio --test-script` mode that runs such a suite headlessly would be a good addition for CI.
 
 ### Seeing and driving the running app
@@ -79,9 +77,9 @@ while the user is typing. Use the in-app `screenshot` command.
 
 - **Everything is a named command** (`commands.rs` table + `App::run_builtin` in `app.rs`). Keys, the palette, Lua,
   `--remote` and future AI tools all call commands. A new feature means adding a command, then binding it.
-- `doc/`: `Backend` trait plus the poppler implementation. Coordinates are PDF points with a top-left origin.
-  The safe `poppler-rs` covers rendering; text layout, links and outline use raw FFI (`poppler::ffi`).
-  `insert_gap_spaces` repairs missing spaces and newlines in poppler's text. Backends are **not `Send`**, so every
+- `doc/`: `Backend` trait plus the MuPDF implementation (`doc/mupdf.rs`, the `mupdf` crate; a patched copy lives in
+  `vendor/mupdf`, see `FOLIO-PATCHES.md` there). Coordinates are points with a top-left origin.
+  `join_visual_lines` merges MuPDF's line pieces that share a baseline. Backends are **not `Send`**, so every
   thread opens its own.
 - `render.rs`: worker pool. The UI publishes the wanted `TileKey` list every frame and workers take the first one not
   in flight. 1024² tiles, generations for reloads, `recolor` for dark/tinted modes.
@@ -99,11 +97,13 @@ while the user is typing. Use the in-app `screenshot` command.
 - **egui/eframe 0.37** (new API). `App::ui(&mut self, ui, frame)`, not `update`. Panels are `egui::Panel::bottom/left/right(..).show(ui, ..)`
   and `CentralPanel::no_frame()`. `Id::new` is deprecated, so use `Id::unique`. `TextEdit::frame` takes a `Frame`.
   Read the crate source under `~/.cargo/registry/src` when unsure; don't guess from older egui docs.
-- Edition 2024: `gen` is a reserved word. Let-chains are used (Rust ≥ 1.88).
+- Edition 2024: `gen` is a reserved word. Let-chains are used. Minimum Rust is 1.95 (egui 0.37).
 - `eframe` uses the `glow` backend (default features off) for faster builds.
 - Keys that open a text field in the same frame would also type into it. `handle_keys` strips key events after
   dispatch to prevent that. Keep it that way.
-- Poppler link areas use a bottom-left origin and get flipped in `links()`. Text layout is already top-left.
+- MuPDF page space is already top-left; `MupdfDoc` subtracts each page's bounds origin (crop boxes) so pages
+  start at (0, 0). MuPDF splits one visual line at wide gaps; `join_visual_lines` puts it back together.
+- The `mupdf` crate is AGPL and so is folio. Fixes to the crate go into `vendor/mupdf` and `FOLIO-PATCHES.md`.
 
 ## Conventions
 
