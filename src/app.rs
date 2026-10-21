@@ -189,7 +189,10 @@ impl App {
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
             Ok(server) => app.ipc = Some(server),
-            Err(e) => eprintln!("folio: remote control disabled: {e:#}"),
+            Err(e) => {
+                eprintln!("folio: remote control disabled: {e:#}");
+                notify_into(&mut app.toasts, format!("Remote control disabled: {e:#}"), Level::Warn);
+            }
         }
         app.load_script();
         match path {
