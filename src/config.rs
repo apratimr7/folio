@@ -140,7 +140,7 @@ impl Rgba {
     pub const fn rgb(r: u8, g: u8, b: u8) -> Self {
         Self([r, g, b, 255])
     }
-    pub const fn rgba(r: u8, g: u8, b: u8, a: u8) -> Self {
+    pub const fn new(r: u8, g: u8, b: u8, a: u8) -> Self {
         Self([r, g, b, a])
     }
     pub fn parse(s: &str) -> Option<Self> {
@@ -197,22 +197,22 @@ impl Theme {
                 text_dim: Rgba::rgb(0x7d, 0x78, 0x6d),
                 accent: Rgba::rgb(0xb4, 0x4a, 0x1f),
                 accent_text: Rgba::rgb(0xff, 0xff, 0xff),
-                search_match: Rgba::rgba(0xff, 0xc4, 0x00, 0x60),
-                search_current: Rgba::rgba(0xff, 0x6a, 0x00, 0x80),
-                selection: Rgba::rgba(0x2f, 0x6f, 0xeb, 0x50),
-                ruler: Rgba::rgba(0xb4, 0x4a, 0x1f, 0x30),
+                search_match: Rgba::new(0xff, 0xc4, 0x00, 0x60),
+                search_current: Rgba::new(0xff, 0x6a, 0x00, 0x80),
+                selection: Rgba::new(0x2f, 0x6f, 0xeb, 0x50),
+                ruler: Rgba::new(0xb4, 0x4a, 0x1f, 0x30),
                 hint_bg: Rgba::rgb(0x2b, 0x2a, 0x27),
                 hint_text: Rgba::rgb(0xff, 0xd8, 0x6b),
                 page_bg: Rgba::rgb(0xf8, 0xf1, 0xe3),
                 page_fg: Rgba::rgb(0x2b, 0x2a, 0x27),
-                page_shadow: Rgba::rgba(0, 0, 0, 0x28),
+                page_shadow: Rgba::new(0, 0, 0, 0x28),
                 radius: 8.0,
                 highlights: hl(&[
-                    ("yellow", Rgba::rgba(0xff, 0xd8, 0x30, 0x70)),
-                    ("green", Rgba::rgba(0x5c, 0xd6, 0x6a, 0x60)),
-                    ("blue", Rgba::rgba(0x4a, 0x9c, 0xff, 0x55)),
-                    ("pink", Rgba::rgba(0xff, 0x6b, 0xb5, 0x55)),
-                    ("purple", Rgba::rgba(0xa8, 0x7c, 0xff, 0x55)),
+                    ("yellow", Rgba::new(0xff, 0xd8, 0x30, 0x70)),
+                    ("green", Rgba::new(0x5c, 0xd6, 0x6a, 0x60)),
+                    ("blue", Rgba::new(0x4a, 0x9c, 0xff, 0x55)),
+                    ("pink", Rgba::new(0xff, 0x6b, 0xb5, 0x55)),
+                    ("purple", Rgba::new(0xa8, 0x7c, 0xff, 0x55)),
                 ]),
             },
             "nord" => Theme {
@@ -226,22 +226,22 @@ impl Theme {
                 text_dim: Rgba::rgb(0x8f, 0x9b, 0xb3),
                 accent: Rgba::rgb(0x88, 0xc0, 0xd0),
                 accent_text: Rgba::rgb(0x2e, 0x34, 0x40),
-                search_match: Rgba::rgba(0xeb, 0xcb, 0x8b, 0x60),
-                search_current: Rgba::rgba(0xd0, 0x87, 0x70, 0x90),
-                selection: Rgba::rgba(0x88, 0xc0, 0xd0, 0x50),
-                ruler: Rgba::rgba(0x88, 0xc0, 0xd0, 0x30),
+                search_match: Rgba::new(0xeb, 0xcb, 0x8b, 0x60),
+                search_current: Rgba::new(0xd0, 0x87, 0x70, 0x90),
+                selection: Rgba::new(0x88, 0xc0, 0xd0, 0x50),
+                ruler: Rgba::new(0x88, 0xc0, 0xd0, 0x30),
                 hint_bg: Rgba::rgb(0x88, 0xc0, 0xd0),
                 hint_text: Rgba::rgb(0x2e, 0x34, 0x40),
                 page_bg: Rgba::rgb(0x2e, 0x34, 0x40),
                 page_fg: Rgba::rgb(0xd8, 0xde, 0xe9),
-                page_shadow: Rgba::rgba(0, 0, 0, 0x60),
+                page_shadow: Rgba::new(0, 0, 0, 0x60),
                 radius: 8.0,
                 highlights: hl(&[
-                    ("yellow", Rgba::rgba(0xeb, 0xcb, 0x8b, 0x70)),
-                    ("green", Rgba::rgba(0xa3, 0xbe, 0x8c, 0x70)),
-                    ("blue", Rgba::rgba(0x81, 0xa1, 0xc1, 0x70)),
-                    ("pink", Rgba::rgba(0xbf, 0x61, 0x6a, 0x60)),
-                    ("purple", Rgba::rgba(0xb4, 0x8e, 0xad, 0x70)),
+                    ("yellow", Rgba::new(0xeb, 0xcb, 0x8b, 0x70)),
+                    ("green", Rgba::new(0xa3, 0xbe, 0x8c, 0x70)),
+                    ("blue", Rgba::new(0x81, 0xa1, 0xc1, 0x70)),
+                    ("pink", Rgba::new(0xbf, 0x61, 0x6a, 0x60)),
+                    ("purple", Rgba::new(0xb4, 0x8e, 0xad, 0x70)),
                 ]),
             },
             "gruvbox" => Theme {
@@ -255,22 +255,22 @@ impl Theme {
                 text_dim: Rgba::rgb(0xa8, 0x99, 0x84),
                 accent: Rgba::rgb(0xfa, 0xbd, 0x2f),
                 accent_text: Rgba::rgb(0x28, 0x28, 0x28),
-                search_match: Rgba::rgba(0xfa, 0xbd, 0x2f, 0x60),
-                search_current: Rgba::rgba(0xfe, 0x80, 0x19, 0x90),
-                selection: Rgba::rgba(0x83, 0xa5, 0x98, 0x60),
-                ruler: Rgba::rgba(0xfa, 0xbd, 0x2f, 0x28),
+                search_match: Rgba::new(0xfa, 0xbd, 0x2f, 0x60),
+                search_current: Rgba::new(0xfe, 0x80, 0x19, 0x90),
+                selection: Rgba::new(0x83, 0xa5, 0x98, 0x60),
+                ruler: Rgba::new(0xfa, 0xbd, 0x2f, 0x28),
                 hint_bg: Rgba::rgb(0xfa, 0xbd, 0x2f),
                 hint_text: Rgba::rgb(0x28, 0x28, 0x28),
                 page_bg: Rgba::rgb(0x28, 0x28, 0x28),
                 page_fg: Rgba::rgb(0xeb, 0xdb, 0xb2),
-                page_shadow: Rgba::rgba(0, 0, 0, 0x70),
+                page_shadow: Rgba::new(0, 0, 0, 0x70),
                 radius: 6.0,
                 highlights: hl(&[
-                    ("yellow", Rgba::rgba(0xfa, 0xbd, 0x2f, 0x70)),
-                    ("green", Rgba::rgba(0xb8, 0xbb, 0x26, 0x60)),
-                    ("blue", Rgba::rgba(0x83, 0xa5, 0x98, 0x70)),
-                    ("pink", Rgba::rgba(0xfb, 0x49, 0x34, 0x60)),
-                    ("purple", Rgba::rgba(0xd3, 0x86, 0x9b, 0x70)),
+                    ("yellow", Rgba::new(0xfa, 0xbd, 0x2f, 0x70)),
+                    ("green", Rgba::new(0xb8, 0xbb, 0x26, 0x60)),
+                    ("blue", Rgba::new(0x83, 0xa5, 0x98, 0x70)),
+                    ("pink", Rgba::new(0xfb, 0x49, 0x34, 0x60)),
+                    ("purple", Rgba::new(0xd3, 0x86, 0x9b, 0x70)),
                 ]),
             },
             // "midnight", the default.
@@ -285,22 +285,22 @@ impl Theme {
                 text_dim: Rgba::rgb(0x86, 0x8d, 0xa1),
                 accent: Rgba::rgb(0x7a, 0xa2, 0xff),
                 accent_text: Rgba::rgb(0x0f, 0x12, 0x1a),
-                search_match: Rgba::rgba(0xff, 0xd0, 0x4d, 0x58),
-                search_current: Rgba::rgba(0xff, 0x8a, 0x3d, 0x90),
-                selection: Rgba::rgba(0x7a, 0xa2, 0xff, 0x50),
-                ruler: Rgba::rgba(0x7a, 0xa2, 0xff, 0x2a),
+                search_match: Rgba::new(0xff, 0xd0, 0x4d, 0x58),
+                search_current: Rgba::new(0xff, 0x8a, 0x3d, 0x90),
+                selection: Rgba::new(0x7a, 0xa2, 0xff, 0x50),
+                ruler: Rgba::new(0x7a, 0xa2, 0xff, 0x2a),
                 hint_bg: Rgba::rgb(0xff, 0xd0, 0x4d),
                 hint_text: Rgba::rgb(0x12, 0x14, 0x1a),
                 page_bg: Rgba::rgb(0x1b, 0x1e, 0x27),
                 page_fg: Rgba::rgb(0xd5, 0xd9, 0xe3),
-                page_shadow: Rgba::rgba(0, 0, 0, 0x70),
+                page_shadow: Rgba::new(0, 0, 0, 0x70),
                 radius: 10.0,
                 highlights: hl(&[
-                    ("yellow", Rgba::rgba(0xff, 0xd0, 0x4d, 0x68)),
-                    ("green", Rgba::rgba(0x5f, 0xd3, 0x8d, 0x5c)),
-                    ("blue", Rgba::rgba(0x5a, 0x9b, 0xff, 0x5c)),
-                    ("pink", Rgba::rgba(0xff, 0x6e, 0xb4, 0x58)),
-                    ("purple", Rgba::rgba(0xb0, 0x8b, 0xff, 0x5c)),
+                    ("yellow", Rgba::new(0xff, 0xd0, 0x4d, 0x68)),
+                    ("green", Rgba::new(0x5f, 0xd3, 0x8d, 0x5c)),
+                    ("blue", Rgba::new(0x5a, 0x9b, 0xff, 0x5c)),
+                    ("pink", Rgba::new(0xff, 0x6e, 0xb4, 0x58)),
+                    ("purple", Rgba::new(0xb0, 0x8b, 0xff, 0x5c)),
                 ]),
             },
         }
@@ -349,6 +349,6 @@ impl Theme {
             .find(|(n, _)| n == name)
             .or(self.highlights.first())
             .map(|(_, c)| *c)
-            .unwrap_or(Rgba::rgba(255, 220, 0, 100))
+            .unwrap_or(Rgba::new(255, 220, 0, 100))
     }
 }
