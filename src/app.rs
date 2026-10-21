@@ -645,6 +645,25 @@ impl App {
                 }
                 return;
             }
+            "clear" => {
+                // Like Esc: Lua pickers and prompts get their `nil` callback.
+                if self.picker.is_some() {
+                    self.picker_event(PickerEvent::Close);
+                }
+                if self.prompt.is_some() {
+                    self.prompt_cancel();
+                }
+                if let Some(d) = &mut self.doc {
+                    d.search = None;
+                    d.text.cancel_search();
+                    d.selection = None;
+                    d.hints = None;
+                    d.peek = None;
+                    d.pending_ref = None;
+                }
+                self.mode = Mode::Normal;
+                return;
+            }
             "echo" => return self.notify(args.to_string()),
             "open_url" => return open_external(args),
             "screenshot" => {
@@ -806,15 +825,6 @@ impl App {
                 } else {
                     self.notify("Nothing selected");
                 }
-            }
-            "clear" => {
-                d.search = None;
-                d.text.cancel_search();
-                d.selection = None;
-                d.hints = None;
-                d.peek = None;
-                d.pending_ref = None;
-                self.mode = Mode::Normal;
             }
             "toc" => self.open_toc(),
             "toggle_sidebar" => self.show_sidebar = !self.show_sidebar,
