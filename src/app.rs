@@ -523,6 +523,12 @@ impl App {
                             return;
                         }
                     }
+                    if name == "radius" && f.is_none() {
+                        return self.warn(format!("theme.radius: '{value}' is not a number"));
+                    }
+                    if name != "radius" && config::Rgba::parse(value).is_none() {
+                        return self.warn(format!("theme.{name}: '{value}' is not a color (#rrggbb or #rrggbbaa)"));
+                    }
                     self.theme = self.theme.clone().with_overrides(&o);
                     self.apply_theme();
                 } else {
@@ -966,13 +972,12 @@ impl App {
                 let target = if name == "toggle_dark" { PageMode::Dark } else { PageMode::Custom };
                 d.page_mode = if d.page_mode == target { PageMode::Normal } else { target };
             }
-            "page_mode" => {
-                d.page_mode = match args {
-                    "dark" => PageMode::Dark,
-                    "custom" => PageMode::Custom,
-                    _ => PageMode::Normal,
-                };
-            }
+            "page_mode" => match args {
+                "normal" => d.page_mode = PageMode::Normal,
+                "dark" => d.page_mode = PageMode::Dark,
+                "custom" => d.page_mode = PageMode::Custom,
+                _ => self.warn(format!("unknown page mode '{args}' (have: normal, dark, custom)")),
+            },
             "add_bookmark" => {
                 if args.is_empty() {
                     let sec = d.current_section().map(|i| d.outline[i].title.clone()).unwrap_or_default();
@@ -1022,6 +1027,10 @@ impl App {
                 }
                 if name == "annotate" && args.is_empty() {
                     return self.ask("note", PromptKind::Annotate, String::new());
+                }
+                if name == "highlight" && !args.is_empty() && !self.theme.highlights.iter().any(|(n, _)| n == args) {
+                    let have: Vec<&str> = self.theme.highlights.iter().map(|(n, _)| n.as_str()).collect();
+                    return self.warn(format!("unknown highlight color '{args}' (have: {})", have.join(", ")));
                 }
                 let color =
                     if name == "highlight" && !args.is_empty() { args.to_string() } else { self.theme.highlights[0].0.clone() };
@@ -1086,7 +1095,7 @@ impl App {
         let Some(d) = &mut self.doc else { return };
         let s = s.trim();
         let page = match s.parse::<usize>() {
-            Ok(n) => Some(n.saturating_sub(1)),
+            Ok(n) => n.checked_sub(1),
             // Page labels, e.g. roman numerals in front matter.
             Err(_) => (0..d.view.page_count()).find(|&i| d.backend.page_label(i).as_deref() == Some(s)),
         };
