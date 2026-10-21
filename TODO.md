@@ -9,8 +9,9 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       `application:openURLs:`.
 - [ ] CI passes (Linux, macOS arm64/x86_64), but the workflow's actions use Node 20 and need bumping
       (`actions/checkout`, `actions/upload-artifact`).
-- [ ] **macOS build is untested on real hardware.** The code type-checks for `aarch64-apple-darwin`, and CI builds
-      it, but nobody has run it yet. Check HiDPI (Retina) sharpness, Cmd-key bindings and font discovery.
+- [ ] **macOS: still unchecked on real hardware** after the 2026-10-20 test pass (which covered everything else, see
+      below; trackpad scrolling and pinch zoom were confirmed by hand): Retina sharpness, the Intel build, and the
+      bundled `.app` on a Mac without Homebrew.
 - [ ] After an auto-reload where the text reflowed (an edited LaTeX source), saved highlights keep their old
       positions and char offsets. Re-anchor them by searching for their text near the old place.
 - [ ] Selections can't span pages (visual mode stays on the page where it started).
@@ -18,8 +19,6 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       that aren't at the end of their text line, two-column layouts where poppler merges lines from both columns.
 - [ ] Bare equation references like `(2.8)` are only detected with a dot (to avoid noise like `(1)`).
 - [ ] Page rotation (`/Rotate`) is handled by poppler's page size, but no rotate command exists yet.
-- [ ] Reloading after a partially written file shows a warning toast. It retries until the file is complete,
-      but it could debounce instead.
 - [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
 - [ ] PDF link-border annotations (red hyperref boxes) are drawn as authored; add an option to hide them.
 - [ ] No license chosen yet. Pick one before publishing.
@@ -45,10 +44,76 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [x] **Bugs from the Lua/automation test pass**: all fixed, see `CHANGELOG.md` [Unreleased] and
       `docs/testing/2026-10-20-lua-api-report.md`. Still open from that pass:
   - [ ] Debounce the `selection` hook (or add a `selection_done` event) for heavy handlers such as AI calls.
-  - [ ] Recheck `folio.clipboard` by hand (it can't be tested from the hidden test window).
+  - [x] Recheck `folio.clipboard` by hand. Works on macOS (`y`, `Y`, `Cmd-c`, `folio.clipboard`, export).
+
+## From macOS testing (2026-10-20)
+
+Details, reproduction and evidence: `docs/testing/2026-10-20-macos-test-report.md` (numbers match).
+
+High:
+
+- [ ] **1. Cmd-Q, Dock → Quit and logout lose the reading position and skip the `quit` hook.** Position falls back
+      to the last 8 s autosave. Ctrl-Q, `:quit` and the close button are fine. Fix: implement eframe's
+      `App::on_exit` with `save_all()` + `emit_quit()`.
+- [ ] **2. Auto-reload can crash (SIGSEGV in poppler) on a file that's still being written.** Seen once, not
+      reproduced in ~200 rewrites. `Session::file_changed` only compares mtimes. Reload when size+mtime are
+      stable across two polls and the file ends with `%%EOF`; open the new document off the UI thread and swap it
+      in on success (this also replaces the warning toast on partial files).
+
+Medium:
+
+- [ ] **3. Smart refs miss number-first theorem styles** (`2.36 Theorem.`, Rudin/Apostol style): 17/21 unresolved
+      in Rudin. Accept `<label> <Kind>` at the line start in `refs::find_definitions`.
+- [ ] **4. Dark page mode makes hyperref blue links nearly invisible** (~1.6:1 contrast). Clamp a minimum lightness
+      for saturated colors in `render::recolor`.
+- [ ] **5. `clear` doesn't close an open picker or prompt** (matters for remote/Lua/agents); hints then start under
+      the picker. Close both, calling Lua prompt/pick callbacks with `nil`.
+- [ ] **6. Stale sockets on macOS** after a crash or kill: `folio.sock` points at a dead socket and `--remote`
+      fails while another instance runs. Probe sockets by connecting (portable) instead of `/proc`; client falls
+      back to the newest live `folio-*.sock`. Handle SIGTERM as a normal close (it skips saving today).
+- [ ] **7. Minimum Rust is 1.95, not 1.88** (egui 0.37). Fix `rust-version` in `Cargo.toml`, `BUILDING.md`,
+      `CLAUDE.md`.
+
+Low:
+
+- [ ] 8. `folio.state().mode` is only `normal`/`visual`, never `hint`/`peek`/`ruler`/`input` like the status bar.
+- [ ] 9. `config.toml` mistakes are silent: unknown settings, bindings to unknown commands, malformed keys
+      (`"<Bad"`, `"<Foo>"`).
+- [ ] 10. Bad values are accepted silently: `highlight nosuchcolor`, `page_mode drak` (→ normal),
+      `theme.accent = "notacolor"`, `goto_page 0` (→ page 1).
+- [ ] 11. `folio.page_text(-1)` / `(2.5)` raise errors instead of returning `nil`.
+- [ ] 12. A figure caption (`Fig. 1.`) is hinted as a reference to itself and resolves to "not found".
+- [ ] 13. Without an outline, `Section 3.5` resolves to its table-of-contents line, not the section.
+- [ ] 14. Palette Tab-completion ranks `zoom_in` above the exact command `zoom` for `zoo`.
+- [ ] 15. `sel_line_next` from a section number moves within the heading (poppler splits `2   Strings…` into two
+      lines). Group lines by baseline for motions.
+- [ ] 16. Status bar shows empty `()` for pages with an empty label.
+- [ ] 17. `USAGE.md` socket path is wrong on macOS (`$TMPDIR`); a socket path over 104 bytes silently disables
+      remote control (stderr only). Show a toast.
+- [ ] 18. `--remote` exits 0 on unknown commands and errors (see `--remote` replies below).
+- [ ] Ctrl/Cmd + wheel zoom is very sensitive with synthetic wheel events (10 events: 139% → 1200%). Pinch zoom
+      on the trackpad feels fine; check with a real mouse wheel.
+- [ ] Cosmetic: one clippy warning (`Rgba::rgba`); `folio FILE --version` ignores flags after a file.
+
+## Missing basics
+
+- [ ] **Password-protected PDFs:** no password prompt; encrypted files fail to open.
+- [ ] **Drag and drop** a PDF onto the window.
+- [ ] **Remember window size and position** (always opens at 1100×900).
+- [ ] **Printing** (or "open in system viewer to print" as a stopgap).
+- [ ] **Scrollbar / position indicator** you can drag, at least on hover.
+- [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).
+- [ ] **Set as default PDF viewer** works only after the Finder `odoc` fix (Known issues).
+- [ ] Printed page numbers: `:8` is always the physical page; add a syntax for the printed page (e.g. `:p8`).
 
 ## Next up
 
+- [ ] **New window and new tab.** Open another document (or the same one) in a new window or a tab, with
+      commands for both (`new_window`, `new_tab`, `next_tab`/`prev_tab`, `close_tab`) and keys. `--remote` and
+      Lua need to address a window/tab. ROADMAP "Later" also lists a split view of the same document.
+- [ ] **Windows build.** The code is mostly portable. Needs: a named-pipe (or TCP localhost) variant of `ipc.rs`,
+      config/data dirs (`%APPDATA%`), poppler from vcpkg or MSYS2, font discovery, and a CI job that uploads a
+      zipped `.exe` with its DLLs.
 - [ ] Two-page / book mode, and a horizontal-scroll mode for slides.
 - [ ] Presentation mode (one page, fit page, no chrome).
 - [ ] SyncTeX: forward search via `--remote 'synctex file.tex:line'` and inverse search to an editor command.
@@ -63,3 +128,9 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] `folio --remote` replies (query state, return JSON) for richer editor/agent integration.
 - [ ] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs.
 - [ ] Packaging: AUR `PKGBUILD`, Homebrew formula, `.desktop` file and icon.
+
+## Later
+
+- [ ] **UI appearance config:** translucent and blurred panels/background (macOS vibrancy, KDE/Hyprland blur
+      via a transparent window), panel opacity, shadows and animation settings, set in a `[ui]` section of
+      `config.toml` and from Lua.
