@@ -1,6 +1,7 @@
 # Configuration
 
-folio reads two optional files from `~/.config/folio/` (or `$XDG_CONFIG_HOME/folio/`), on Linux and macOS alike:
+folio reads two optional files from `~/.config/folio/` on Linux and macOS, `%APPDATA%\folio\` on Windows, or
+`$XDG_CONFIG_HOME/folio/` when that's set (on every platform):
 
 | file | |
 |---|---|
@@ -15,9 +16,9 @@ Mistakes show a warning when the config loads: a type error (the previous config
 (checked after `init.lua`, so Lua commands count), or a `[keys.<mode>]` table for a mode other than `normal` and
 `visual`.
 
-Per-document state lives in `~/.local/share/folio/` (or `$XDG_DATA_HOME/folio/`): one JSON file per document
-under `docs/`, plus `global.json` for recent files and global marks. The files are plain JSON, so they're easy to
-back up or process.
+Per-document state lives in `~/.local/share/folio/` (`%LOCALAPPDATA%\folio\` on Windows, or `$XDG_DATA_HOME/folio/`):
+one JSON file per document under `docs/`, plus `global.json` for recent files and global marks, and `window.ron`
+for the window size and position. The files are plain text, so they're easy to back up or process.
 
 ## `[general]`
 

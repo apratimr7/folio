@@ -16,7 +16,9 @@ cargo test -- --nocapture                    # show eprintln! output
 
 Use a toolchain of at least Rust 1.95 (`cargo +1.95 test` if your default is older). The first build compiles
 MuPDF from C and takes a few minutes. After that, the whole suite runs in about a second. CI runs `cargo test`
-on Linux and both macOS architectures.
+on Linux, both macOS architectures and Windows. A few tests are Unix-only (`#[cfg(unix)]`: the Lua `spawn` tests use
+`sh`/`cat`, and remote control has no Windows transport yet). `.gitattributes` keeps LF line endings so the tests
+that compare docs with command output also pass on Windows checkouts.
 
 ## Layout
 

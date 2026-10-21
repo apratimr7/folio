@@ -44,11 +44,11 @@ Planned:
 
 ## Later
 
-- More formats: EPUB and DjVu (via a MuPDF backend behind the existing `Backend` trait), and plain images.
+- More formats: EPUB, CBZ, XPS and images, which MuPDF (folio's engine) already reads; DjVu would need djvulibre.
 - Handwritten/ink annotations and a drawing layer.
 - Tabs or multiple windows, and a split view of the same document.
 - Sync of highlights/notes across machines (plain JSON files, so a git or cloud folder works).
-- Windows support (the code is mostly portable; IPC needs a named-pipe variant).
+- Windows: builds since October 2026; remote control still needs a named-pipe transport (see `TODO.md`).
 
 ## Versioning
 

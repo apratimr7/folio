@@ -6,6 +6,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **Windows build.** folio builds and runs on Windows (x86_64, MSVC); CI tests it and uploads a zipped `folio.exe`.
+  Config lives in `%APPDATA%\folio` and data in `%LOCALAPPDATA%\folio`. Remote control isn't available on Windows yet.
 - `v` lets you start a selection anywhere on screen: pick a row (labels in the left margin), then a word on it
   (the rest of the page dims). `v` `v` starts at the first word on screen as before; a search match on screen or the
   ruler still starts right away.

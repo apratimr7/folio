@@ -37,7 +37,7 @@
 | `session.rs` | `Session`: everything tied to one open document |
 | `script.rs` | Lua runtime: the `folio` API, effect queue, hooks, async processes |
 | `store.rs` | JSON persistence of per-document state and global data |
-| `ipc.rs` | Unix-socket server and `--remote` client |
+| `ipc/` | remote control: `unix.rs` (Unix-socket server and `--remote` client), `windows.rs` (a stub until a named-pipe transport exists) |
 | `ui/frame.rs` | the egui frame loop: input routing, worker polling, canvas painting, panels, peek, toasts |
 | `ui/picker.rs` | the fuzzy picker overlay (nucleo matcher) |
 | `ui/style.rs` | theme → egui visuals, font discovery |
@@ -93,3 +93,19 @@ just that tile, on a white background, then expands it to RGBA. `render::recolor
 - `cargo test`: key parsing and dispatch, and layout math.
 - `folio --debug {render,outline,text,links,refs,findref,search} FILE …`: headless backend checks.
 - `folio --remote 'screenshot out.png'`: captures the real window contents, for visual checks.
+
+## Platforms
+
+The code is shared; the differences are small and kept at the edges:
+
+| | Linux | macOS | Windows |
+|---|---|---|---|
+| config / data | `~/.config/folio`, `~/.local/share/folio` | same as Linux | `%APPDATA%\folio`, `%LOCALAPPDATA%\folio` |
+| remote control | Unix socket in `$XDG_RUNTIME_DIR` | Unix socket in `$TMPDIR` | not yet (`ipc/windows.rs` stub) |
+| signals → clean quit | SIGTERM/SIGHUP/SIGINT | same | not yet |
+| link opener | `xdg-open` | `open` | `explorer` |
+| UI font fallback | fontconfig (Inter, Noto, …) | SF | Segoe UI |
+| quitting | window close / `:quit` | also Cmd-Q via `App::on_exit` | window close / `:quit` |
+
+`XDG_CONFIG_HOME`/`XDG_DATA_HOME` override the folders everywhere (the tests rely on it). On Windows the binary is
+a GUI-subsystem program that reattaches to the parent console for CLI flags (`main.rs`).

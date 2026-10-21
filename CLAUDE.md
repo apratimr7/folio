@@ -5,37 +5,66 @@ physics researcher (AdS/CFT, black holes) who reads papers and books and writes 
 keyboard-centric, clean modern UI that's customizable, extensible by scripting (Lua), and designed for research
 reading. **AI features come next** (see `ROADMAP.md` § 0.3).
 
-Version 0.1.0 plus everything under `[Unreleased]` in `CHANGELOG.md`. Built and tested on Linux (Arch,
-Hyprland/Wayland) and macOS (Apple Silicon). Development happens on the `dev` branch; `main` is the last release.
+Version 0.1.0 plus everything under `[Unreleased]` in `CHANGELOG.md`. Runs on Linux, macOS and Windows.
+Branches: `main` is the latest state everyone should use (CI green on all platforms); `dev` is where work happens
+and is merged into `main` once CI passes. Both are on GitHub (`apratimr7/folio`, private).
 
-## Status as of 2026-10-20
+## Status as of 2026-10-21
 
 - **PDF engine is MuPDF** (was poppler), statically linked; folio has no runtime dependencies. License is
   **AGPL-3.0-or-later** because of MuPDF. `vendor/mupdf` is a patched mupdf-rs (see `FOLIO-PATCHES.md`).
-- Two test passes are done: Lua/automation on Linux (`docs/testing/2026-10-20-lua-api-report.md`) and a full macOS
-  pass (`docs/testing/2026-10-20-macos-test-report.md`). Their bugs are fixed except the ones still open in
-  `TODO.md` ("From macOS testing"). The user confirmed trackpad scrolling and pinch zoom by hand.
-- `TODO.md` is the single list of open issues, missing basics and next work. `ROADMAP.md` is the long term.
-- Unchecked on real hardware: Retina sharpness, the Intel build, opening via a Finder drag (drag and drop is
-  implemented), and window-geometry restore (the user runs the AeroSpace tiling WM, which places windows itself).
-- The user's priorities, in their words so far: get it solid on the Mac, then decide between AI features and
-  SyncTeX (they write LaTeX/Typst). Later: new window/tab, a Windows build, UI blur/appearance config, a website.
+- **Platforms:** Linux (the original; hand-tested before the MuPDF switch, CI since), macOS Apple Silicon (full
+  hand test pass + CI), macOS Intel (CI), **Windows** (new: CI builds, tests and zips `folio.exe`; the user's
+  friends are about to test it; remote control and signal handling are Unix-only so far).
+- **Tests:** 140 unit + 18 CLI tests on committed fixture PDFs (`docs/TESTING.md`), run in CI on all platforms.
+- Test passes so far: Lua/automation on Linux and a full macOS pass (`docs/testing/`). Their bugs are fixed except
+  what's still open in `TODO.md`.
+- **Recently added:** visual mode starts with row → word hints (`v`; `v v` = old start); the user is happy with it,
+  so caret mode is only an optional idea. Dark-mode link contrast, window-geometry memory, drag and drop, clean
+  quit on Cmd-Q and signals, config warnings, link-scheme safety, marks deletion.
+- `TODO.md` is the single list of open work. Notable sections: "Configuration space (to build in one go)" lists
+  every hard-coded tunable (dimming amounts first, as the user asked) to be built in one pass later; "Later →
+  Polishing" holds a sensible default config and UI enhancements. `ROADMAP.md` is the long term.
+- Unchecked on real hardware: Retina sharpness, the Intel Mac build, Windows (friends), a real Finder drag, and
+  window-geometry restore (the user runs the AeroSpace tiling WM, which places windows itself).
+- **The user's priorities, in their words so far:** get it solid on each platform; then decide between AI features
+  and SyncTeX (they write LaTeX/Typst); build the configuration space in one go; then new window/tab, polishing
+  (default config, UI enhancements, blur), and a website last. Ask before starting a big item.
+
+## Picking it up on another machine
+
+```sh
+git clone https://github.com/apratimr7/folio && cd folio && git switch dev   # or stay on main to just use it
+rustup toolchain install 1.95                                                 # minimum Rust (egui 0.37)
+cargo +1.95 test                                                              # first build compiles MuPDF (minutes)
+```
+
+Build prerequisites per platform are in `docs/BUILDING.md`: Linux needs a C compiler, `make`, `clang`/`libclang` and
+the xkbcommon/GL headers; macOS needs the Xcode command-line tools; Windows needs the VS 2022 Build Tools (C++) and
+LLVM. Ready-made binaries for all platforms are the artifacts of the latest green CI run
+(`gh run download -n folio-<platform>…`, see `docs/BUILDING.md`).
 
 ## Working on the Mac
 
 - Build: `./scripts/build-macos.sh` (Xcode CLT and rustup with Rust ≥ 1.95; the first build compiles MuPDF from C
   and takes a few minutes). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`. If the default
-  toolchain is older, use `cargo +1.95 …`.
+  toolchain is older, use `cargo +1.95 …` (on the user's Mac, `stable` is 1.85, so `+1.95` is needed).
 - CI artifact instead of building: `gh run download -n folio-macos-macos-15`, unzip, right-click → Open.
 - Cmd works as Ctrl (`ui/frame.rs::chords()`); Cmd-Q goes through the app menu, so quitting is handled in
   `App::on_exit` too. The remote socket is in `$TMPDIR`; macOS limits socket paths to 104 bytes.
 - Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
 
+## Working on Windows
+
+- Build: `./scripts/build-windows.ps1` (PowerShell). Config `%APPDATA%\folio`, data `%LOCALAPPDATA%\folio`.
+- `ipc/windows.rs` is a stub (no `--remote`); `close_on_signals` is a no-op. Unix-only tests are `#[cfg(unix)]`.
+- The binary is a GUI-subsystem program that reattaches to the parent console for CLI output (`main.rs`).
+
 ## Commands
 
 ```sh
 cargo build                      # dev profile is opt-level 1 (deps at 3), fast enough to use
-cargo test                       # unit + CLI tests on tests/fixtures (docs/TESTING.md); -- --ignored = known bugs
+cargo test                       # unit + CLI tests on tests/fixtures (docs/TESTING.md); ~1 s after the build
 cargo clippy && cargo fmt        # rustfmt.toml: max_width 130
 cargo build --release
 ./target/debug/folio --debug outline|text|links|refs|findref|search FILE [PAGE|QUERY]   # headless backend checks (PAGE is 0-based)
