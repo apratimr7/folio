@@ -37,7 +37,9 @@ Big moves (go to page, TOC, links, references, marks, the first search jump) are
 `Ctrl-o` (or `Backspace`) goes back, `Ctrl-i` (or `Tab`) goes forward. Use this after following a reference.
 
 `m` then a letter sets a mark, and `'` or `` ` `` then the letter jumps to it. Lowercase marks belong to the document.
-**Uppercase marks are global**: `'A` reopens the document the mark is in. `''` jumps back. `gm` lists marks.
+**Uppercase marks are global**: `'A` reopens the document the mark is in. `''` jumps back. `gm` lists marks;
+`Ctrl-d` there deletes the selected one. `:delete_mark a` deletes one mark, `:delete_marks` all of this document's
+lowercase marks.
 
 ## Search
 
@@ -153,5 +155,8 @@ folio --remote 'search Hawking radiation' 'center_line'
 folio --remote 'toggle_dark; zoom 140'
 ```
 
-This talks to the most recently started instance through `$XDG_RUNTIME_DIR/folio.sock`.
-Set `FOLIO_SOCKET` to target a specific one (`$XDG_RUNTIME_DIR/folio-<pid>.sock`).
+This talks to the most recently started instance through `folio.sock` in `$XDG_RUNTIME_DIR`, or in `$TMPDIR`
+when `XDG_RUNTIME_DIR` isn't set (the usual case on macOS). If that instance is gone, the newest running one is
+used. Set `FOLIO_SOCKET` to target a specific one, e.g. `FOLIO_SOCKET=$TMPDIR/folio-<pid>.sock`.
+Sockets are private to your user (mode 0600). A socket path can be at most 104 bytes on macOS (108 on Linux); if
+it's longer, remote control is disabled and folio shows a warning.
