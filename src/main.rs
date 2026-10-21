@@ -9,6 +9,8 @@ mod render;
 mod script;
 mod session;
 mod store;
+#[cfg(test)]
+mod tests;
 mod text;
 mod ui;
 mod view;
