@@ -10,6 +10,11 @@ folio reads two optional files from `~/.config/folio/` (or `$XDG_CONFIG_HOME/fol
 `folio --init-config` writes commented versions of both (it never overwrites). `folio --print-config` prints the
 defaults. `:reload_config` applies changes without restarting.
 
+Mistakes show a warning when the config loads: a type error (the previous config is kept), an unknown setting
+(e.g. a typo like `hint_char`), a malformed key (`"<C-"`, `"<Foo>"`), a binding to a command that doesn't exist
+(checked after `init.lua`, so Lua commands count), or a `[keys.<mode>]` table for a mode other than `normal` and
+`visual`.
+
 Per-document state lives in `~/.local/share/folio/` (or `$XDG_DATA_HOME/folio/`): one JSON file per document
 under `docs/`, plus `global.json` for recent files and global marks. The files are plain JSON, so they're easy to
 back up or process.

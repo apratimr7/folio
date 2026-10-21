@@ -70,12 +70,15 @@ Typing a label in **uppercase** peeks instead of jumping, whichever key started 
 - figures `Fig. 3`, `Figure 2.1b`, and tables `Table 4`, found by their captions
 - equations `Eq. (2.4)`, `eqs. 3.1`, and bare `(2.8)`, found by the equation number at the end of a line
 - `Theorem`, `Lemma`, `Proposition`, `Corollary`, `Definition`, `Remark`, `Example`, `Conjecture`,
-  `Assumption`, `Algorithm`, `Claim` + number
+  `Assumption`, `Algorithm`, `Claim` + number, defined as `Theorem 2.36.` or number-first `2.36 Theorem.`
 - `Section 3.2`, `Sec. 4`, `§2`, `Appendix A`, `Chapter 5`, resolved through the outline first
 
 **Peek** opens a floating preview of the target with the target outlined. `j`/`k` scroll inside it, `J`/`K` change
 page, `+`/`-` zoom, `Enter` jumps there (and records it in the jump list), and `Esc` closes it.
 Right-clicking a link peeks it too.
+
+Web links (`http`, `https`) and `mailto:` open in the default handler. Other link targets in a PDF (`file:`, custom
+schemes, paths) aren't opened, since they could launch files or programs; folio shows the target and copies it.
 
 ## Selecting, copying and highlighting
 

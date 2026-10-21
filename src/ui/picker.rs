@@ -363,6 +363,15 @@ impl Picker {
     }
 }
 
+/// Put the text cursor of a `TextEdit` at the end of its contents.
+pub fn set_cursor_end(ctx: &egui::Context, id: egui::Id, text: &str) {
+    if let Some(mut state) = egui::TextEdit::load_state(ctx, id) {
+        let end = egui::text::CCursor::new(text.chars().count());
+        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
+        state.store(ctx, id);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -382,14 +391,5 @@ mod tests {
         assert_eq!(&got[..3], ["zoom", "zoom_in", "zoom_out"]);
         assert_eq!(palette(&names, "zoom_in")[0], "zoom_in");
         assert_eq!(palette(&names, "zoom 150")[0], "zoom");
-    }
-}
-
-/// Put the text cursor of a `TextEdit` at the end of its contents.
-pub fn set_cursor_end(ctx: &egui::Context, id: egui::Id, text: &str) {
-    if let Some(mut state) = egui::TextEdit::load_state(ctx, id) {
-        let end = egui::text::CCursor::new(text.chars().count());
-        state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
-        state.store(ctx, id);
     }
 }
