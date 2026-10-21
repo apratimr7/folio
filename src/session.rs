@@ -117,6 +117,8 @@ pub struct Session {
     pub page_mode: PageMode,
     pub mtime: Option<SystemTime>,
     pub last_mtime_check: Instant,
+    /// Size and mtime seen at the last poll after a change, to wait until the file stops growing.
+    pub pending_change: Option<(u64, SystemTime)>,
     /// Outstanding reference lookup: (request id, open as peek, display label).
     pub pending_ref: Option<(u64, bool, String)>,
     pub next_ref_id: u64,
@@ -126,6 +128,17 @@ pub struct Session {
 
 fn file_mtime(path: &Path) -> Option<SystemTime> {
     std::fs::metadata(path).and_then(|m| m.modified()).ok()
+}
+
+/// Does the file end like a finished PDF (`%%EOF` in its last ~1 KB)?
+fn ends_with_eof(path: &Path, len: u64) -> bool {
+    use std::io::{Read, Seek, SeekFrom};
+    let Ok(mut f) = std::fs::File::open(path) else { return false };
+    let mut buf = Vec::with_capacity(1024);
+    if f.seek(SeekFrom::Start(len.saturating_sub(1024))).is_err() || f.take(1024).read_to_end(&mut buf).is_err() {
+        return false;
+    }
+    buf.windows(5).any(|w| w == b"%%EOF")
 }
 
 pub fn render_colors(theme: &Theme) -> Colors {
@@ -180,6 +193,7 @@ impl Session {
             page_mode: cfg.general.page_mode,
             mtime: file_mtime(&path),
             last_mtime_check: Instant::now(),
+            pending_change: None,
             pending_ref: None,
             next_ref_id: 1,
             last_page: usize::MAX,
@@ -227,14 +241,25 @@ impl Session {
         Ok(())
     }
 
-    /// True if the file changed on disk and looks complete.
+    /// True if the file changed on disk and looks complete: size and mtime unchanged since the
+    /// previous poll, and a `%%EOF` near the end. A file still being written waits for a later poll.
     pub fn file_changed(&mut self) -> bool {
         if self.last_mtime_check.elapsed().as_millis() < 700 {
             return false;
         }
         self.last_mtime_check = Instant::now();
-        let m = file_mtime(&self.path);
-        m.is_some() && m != self.mtime
+        let Ok(meta) = std::fs::metadata(&self.path) else { return false };
+        let Ok(m) = meta.modified() else { return false };
+        if Some(m) == self.mtime {
+            self.pending_change = None;
+            return false;
+        }
+        let seen = (meta.len(), m);
+        if self.pending_change != Some(seen) {
+            self.pending_change = Some(seen);
+            return false;
+        }
+        ends_with_eof(&self.path, meta.len())
     }
 
     pub fn start_search(&mut self, query: String, backward: bool, origin: DocPos, jump: bool) {
@@ -329,5 +354,23 @@ impl Session {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn eof_marker_near_end() {
+        let path = std::env::temp_dir().join(format!("folio-eof-test-{}.pdf", std::process::id()));
+        let mut body = b"%PDF-1.5\n".to_vec();
+        body.extend(std::iter::repeat_n(b'x', 4000));
+        std::fs::write(&path, &body).unwrap();
+        assert!(!ends_with_eof(&path, body.len() as u64));
+        body.extend(b"\nstartxref\n123\n%%EOF\n");
+        std::fs::write(&path, &body).unwrap();
+        assert!(ends_with_eof(&path, body.len() as u64));
+        let _ = std::fs::remove_file(path);
     }
 }
