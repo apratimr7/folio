@@ -764,7 +764,7 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let page = d.view.current_page();
                 let n = d.view.page_count();
-                let label = d.backend.page_label(page).filter(|l| *l != (page + 1).to_string());
+                let label = d.backend.page_label(page).filter(|l| !l.trim().is_empty() && *l != (page + 1).to_string());
                 let pct = if n > 1 { page * 100 / (n - 1) } else { 100 };
                 ui.label(RichText::new(format!("{pct}%")).color(c(t.text_dim)).monospace());
                 let page_text = match label {
