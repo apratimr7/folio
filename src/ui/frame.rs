@@ -104,6 +104,12 @@ impl eframe::App for App {
             ctx.request_repaint_after(Duration::from_millis(900));
         }
     }
+
+    /// Every exit path, including Cmd-Q and Apple Event quits that never raise `close_requested`.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.save_all();
+        self.emit_quit();
+    }
 }
 
 /// Translate egui events into key chords.
