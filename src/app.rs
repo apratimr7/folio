@@ -668,7 +668,7 @@ impl App {
                 return;
             }
             "echo" => return self.notify(args.to_string()),
-            "open_url" => return open_external(args),
+            "open_url" => return self.open_link(args),
             "screenshot" => {
                 let path = if args.is_empty() { PathBuf::from("folio.png") } else { shellexpand(args) };
                 let cb = egui::ScreenshotCallback::new(move |img| {
@@ -1000,6 +1000,22 @@ impl App {
         }
     }
 
+    /// Open a web or mail link. Anything else (`file:`, custom schemes, paths) could launch files
+    /// or apps from a PDF, so it's only copied to the clipboard.
+    pub fn open_link(&mut self, target: &str) {
+        let target = target.trim();
+        if target.is_empty() {
+            return self.warn("No URL given");
+        }
+        if is_web_url(target) {
+            open_external(target);
+            self.notify(format!("Opening {target}"));
+        } else {
+            self.ctx.copy_text(target.to_string());
+            self.warn(format!("Not opening '{target}' (only http, https and mailto links open); copied it"));
+        }
+    }
+
     fn goto_page_str(&mut self, s: &str) {
         let Some(d) = &mut self.doc else { return };
         let s = s.trim();
@@ -1158,8 +1174,7 @@ impl App {
             }
             HintAction::Link(LinkTarget::Uri(uri)) => {
                 self.ctx.copy_text(uri.clone());
-                open_external(&uri);
-                self.notify(format!("Opening {uri}"));
+                self.open_link(&uri);
             }
             HintAction::Link(LinkTarget::Other(s)) => self.notify(format!("Unsupported link: {s}")),
             HintAction::Ref { kind, label, page, char_idx } => {
@@ -1845,8 +1860,13 @@ fn save_png(path: &Path, img: &egui::ColorImage) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Open a URL or file with the desktop's default handler.
-pub fn open_external(target: &str) {
+fn is_web_url(s: &str) -> bool {
+    let l = s.to_ascii_lowercase();
+    ["http://", "https://", "mailto:"].iter().any(|p| l.starts_with(p))
+}
+
+/// Open a URL with the desktop's default handler. Callers check the scheme ([`App::open_link`]).
+fn open_external(target: &str) {
     let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
     if let Err(e) = std::process::Command::new(opener).arg(target).spawn() {
         eprintln!("folio: {opener} failed: {e}");

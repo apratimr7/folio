@@ -690,10 +690,7 @@ impl App {
             if let Some(link) = link {
                 match link.target {
                     doc::LinkTarget::Page(pos) => d.jump(pos, 0.1, false),
-                    doc::LinkTarget::Uri(uri) => {
-                        crate::app::open_external(&uri);
-                        self.notify(format!("Opening {uri}"));
-                    }
+                    doc::LinkTarget::Uri(uri) => self.open_link(&uri),
                     doc::LinkTarget::Other(s) => self.notify(format!("Unsupported link: {s}")),
                 }
             }
