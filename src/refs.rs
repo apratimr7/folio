@@ -72,6 +72,11 @@ fn page_string(text: &PageText) -> (String, Vec<usize>) {
     let mut s = String::with_capacity(text.chars.len());
     let mut byte_to_char = Vec::with_capacity(text.chars.len());
     for (i, &c) in text.chars.iter().enumerate() {
+        // "Defi-\nnition 3.9": drop a hyphen and line break inside a word so the keyword matches.
+        let hyphen_break = |j: usize| text.chars.get(j) == Some(&'-') && text.chars.get(j + 1) == Some(&'\n');
+        if hyphen_break(i) || (c == '\n' && i > 0 && hyphen_break(i - 1)) {
+            continue;
+        }
         let c = if c == '\n' { ' ' } else { c };
         for _ in 0..c.len_utf8() {
             byte_to_char.push(i);
@@ -135,16 +140,29 @@ pub fn detect(text: &PageText) -> Vec<Reference> {
     }
     for c in p.bare_eq.captures_iter(&s) {
         let m = c.get(0).unwrap();
-        // Skip equation numbers themselves: they sit at the end of a line, or at its start when left-numbered.
+        // Skip equation numbers themselves: they end a line, or start one followed by a wide gap (left-numbered).
         let after = text.chars.get(b2c[m.end()]).copied();
-        let before = b2c[m.start()].checked_sub(1).map(|i| text.chars[i]);
-        if after == Some('\n') || after.is_none() || before.is_none_or(|c| c == '\n') {
+        if after == Some('\n') || after.is_none() || left_equation_number(text, b2c[m.start()], b2c[m.end()]) {
             continue;
         }
         push(RefKind::Equation, c[1].to_string(), m.start(), m.end());
     }
     out.sort_by_key(|r| r.start);
     out
+}
+
+/// A tag like `(3.21)` at the start of a line, followed by a gap wider than a word space: a left-numbered
+/// equation (`leqno`), not a sentence that starts with a reference.
+fn left_equation_number(text: &PageText, start: usize, end: usize) -> bool {
+    if start > 0 && text.chars[start - 1] != '\n' {
+        return false;
+    }
+    let Some(next) = (end..text.chars.len()).take_while(|&i| text.chars[i] != '\n').find(|&i| !text.chars[i].is_whitespace())
+    else {
+        return true;
+    };
+    let tag = text.rects[end - 1];
+    text.rects[next].x0 - tag.x1 > tag.height() * 1.5
 }
 
 /// Does this page look like part of a bibliography?
@@ -309,9 +327,21 @@ mod tests {
 
     #[test]
     fn equation_numbers_are_not_references() {
-        let t = page(&["(3.21) lim sn = s", "a + b = c (3.22)", "by (3.21) and (3.22) we get"]);
+        let mut t = page(&["(3.21)       lim sn = s", "a + b = c (3.22)", "by (3.21) and (3.22) we get", "(3.22) is used"]);
+        // Widen the gap after the left-numbered tag, as a typeset equation has.
+        for r in &mut t.rects[6..18] {
+            r.x0 += 60.0;
+            r.x1 += 60.0;
+        }
         let labels: Vec<_> = detect(&t).into_iter().map(|r| (r.label, t.span_text(r.start, r.end))).collect();
-        assert_eq!(labels.len(), 2, "only the two references in the sentence: {labels:?}");
+        assert_eq!(labels.len(), 3, "the references in the sentences, not the numbers: {labels:?}");
+    }
+
+    #[test]
+    fn keywords_hyphenated_across_lines_are_detected() {
+        let t = page(&["as in Defi-", "nition 3.9 and Theo-", "rem 2.1 above"]);
+        let labels: Vec<_> = detect(&t).into_iter().map(|r| r.label).collect();
+        assert_eq!(labels, ["Definition 3.9", "Theorem 2.1"]);
     }
 
     #[test]

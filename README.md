@@ -52,6 +52,7 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 | [docs/SCRIPTING.md](docs/SCRIPTING.md) | the Lua API, with examples |
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | how it's built, for contributors |
 | [docs/BUILDING.md](docs/BUILDING.md) | Linux, macOS and CI builds |
+| [docs/TESTING.md](docs/TESTING.md) | the test suite, fixtures, and adding a test for a bug |
 | [CHANGELOG.md](CHANGELOG.md) | versions and what changed |
 | [TODO.md](TODO.md) | known issues and next tasks |
 | [ROADMAP.md](ROADMAP.md) | future plans, including the AI features |

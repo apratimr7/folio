@@ -1,0 +1,36 @@
+% rudin_style.pdf: number-first theorem headers ("2.36 Theorem."), as in Rudin or Apostol. No hyperref.
+\pdfinfoomitdate=1
+\pdftrailerid{}
+\pdfsuppressptexinfo=-1
+\documentclass[11pt]{article}
+\pdfpagewidth=\paperwidth \pdfpageheight=\paperheight % US letter whatever the local TeX default
+\usepackage[T1]{fontenc}
+\hyphenation{Definition Theorem}
+\newcommand{\thmhead}[2]{\par\medskip\noindent\textbf{#1\ \ #2.}\ }
+\begin{document}
+
+\noindent\textbf{\Large 2\quad Basic Topology}
+\medskip
+
+\thmhead{2.35}{Definition}
+\emph{A set is compact if every open cover has a finite subcover.}
+
+\thmhead{2.36}{Theorem}
+\emph{If a collection of compact sets has the finite intersection property, its intersection is nonempty.}
+
+\thmhead{2.37}{Corollary}
+\emph{A nested sequence of nonempty compact sets has a nonempty intersection.}
+\clearpage
+
+\noindent\textbf{\Large 3\quad Numerical Sequences}
+\medskip
+
+\thmhead{3.9}{Definition}
+\emph{A sequence converges if it is a Cauchy sequence in a complete space.}
+The partial sums satisfy
+\[ s_n = \sum_{k=1}^{n} a_k \qquad\qquad (3.21) \]
+for every index.
+
+By Theorem 2.36 and the remark after it, the claim follows. Using Definition 3.9 we
+see that every bounded monotone sequence converges, and the formula (3.21) gives the limit.
+\end{document}

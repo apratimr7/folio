@@ -94,6 +94,13 @@ Low:
       on the trackpad feels fine; check with a real mouse wheel.
 - [ ] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)
 
+## Found by the test suite
+
+- [x] References whose keyword is hyphenated across a line break weren't detected (`refs::detect`).
+- [x] A truncated PDF opened with zero pages and no error (the page tree is at the end of the file).
+- [ ] `--debug findref` prints an empty `«»` line for equation targets (it matches lines by the first char's y).
+      Debug output only; the resolved target is correct.
+
 ## MuPDF follow-ups
 
 - [ ] Upstream the two `vendor/mupdf` fixes to mupdf-rs, then drop the vendored copy.
@@ -136,7 +143,7 @@ Low:
 - [ ] Thumbnails overview grid (`gt`).
 - [ ] Config hot-reload on file change.
 - [ ] `folio --remote` replies (query state, return JSON) for richer editor/agent integration.
-- [ ] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs.
+- [x] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs (`docs/TESTING.md`).
 - [ ] Packaging: AUR `PKGBUILD`, Homebrew formula, `.desktop` file and icon.
 
 ## Later

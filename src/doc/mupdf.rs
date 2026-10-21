@@ -29,6 +29,10 @@ impl MupdfDoc {
             bail!("the document is password-protected");
         }
         let n = doc.page_count().map_err(|e| anyhow!("{e}"))?.max(0) as usize;
+        if n == 0 {
+            // pdflatex writes the page tree last, so a file that's still being written opens with no pages.
+            bail!("no pages (the file is incomplete or damaged)");
+        }
         let bounds = (0..n)
             .map(|i| {
                 doc.load_page(i as i32)

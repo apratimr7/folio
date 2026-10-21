@@ -9,6 +9,9 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 - Drop a PDF onto the window to open it.
 - Marks can be deleted: `Ctrl-d` in the marks list (`gm`), `delete_mark {letter}` and `delete_marks` (all of the
   document's lowercase marks).
+- An automated test suite (`cargo test`): about 135 unit and CLI tests covering the MuPDF backend, search, smart
+  references, state files, config, commands and the Lua API. The tests run on small fixture PDFs built from LaTeX
+  sources in `tests/fixtures/`. See `docs/TESTING.md`.
 
 ### Changed
 - The window size and position are remembered between sessions (`window.ron` in the data directory).
@@ -35,6 +38,11 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
   (mode unchanged), `folio.set("theme.<key>", <not a color>)`, `goto_page 0`.
 
 ### Fixed
+- Smart references: keywords hyphenated across a line break (`Defi-` / `nition 3.9`) are detected. Left-numbered
+  equations (`leqno`, Rudin) resolve, and their numbers aren't hinted as references; a sentence that starts with
+  `(2.1)` still is (told apart by the wide gap after an equation number).
+- A PDF with no pages (typically one pdflatex is still writing) fails to open with a clear message instead of
+  opening empty.
 - `kill` (SIGTERM), SIGHUP and Ctrl-C in the terminal close folio normally: the position is saved, the `quit` hook
   runs and the remote-control socket is removed.
 - Dark pages: hyperref blue (and other saturated) links were nearly invisible (about 1.6:1 contrast). Strongly
