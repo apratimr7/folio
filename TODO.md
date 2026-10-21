@@ -173,6 +173,43 @@ System and safety:
 - [ ] Remote control on/off and socket path; whether `--remote lua …` is allowed.
 - [ ] Lua: command-loop limit (24), `selection` hook debounce (see Lua report items).
 
+## CI and release speed
+
+Measured on the Windows job: about 49 min cold (MuPDF compiled twice, no cache yet), 16.5 min with a warm cache.
+macOS arm64 and Linux take 1–4 min warm. In order of value:
+
+- [ ] **Pin the Rust toolchain in CI** (`1.95` instead of `stable`): every new stable release changes the cache key
+      and forces a full MuPDF rebuild. Bump it deliberately.
+- [ ] **Compile MuPDF once per run**: run the tests in release mode (`cargo test --release`) so the packaging step
+      reuses the same build instead of building MuPDF again with the release profile (roughly halves a cold build).
+- [ ] **Skip CI for docs-only changes** (`paths-ignore: ['**.md', 'docs/**']` on `push`/`pull_request`).
+- [ ] **Cancel superseded runs** (`concurrency: { group: ${{ github.workflow }}-${{ github.ref }},
+      cancel-in-progress: true }`), so a new push to `dev` stops the previous run.
+- [ ] **Parallel MSBuild for MuPDF on Windows**: `mupdf-sys` calls MSBuild without `/m`, so the third-party
+      projects build one after another. Patch it (vendor `mupdf-sys` like `mupdf`) and send the fix upstream;
+      likely 2–4× faster cold Windows builds.
+- [ ] Optional: build Windows only on `main`, pull requests and tags (not every `dev` push), or use larger runners.
+
+## Documentation
+
+Goal: good docs for users and contributors that can't drift from the code. Plan (needs a decision before
+starting):
+
+- [ ] **A documentation site with mdBook**, built from the existing `docs/*.md` (no rewrite) and published to GitHub
+      Pages by a workflow on `main`: navigation, search, dark mode. It can grow into the project website later.
+- [ ] **Generated reference pages**, each checked by a test so a change in code without docs fails CI (as
+      `docs/COMMANDS.md` already is):
+  - [ ] commands and default keys (`folio --list-commands`, exists);
+  - [ ] configuration reference generated from the config schema and its doc comments (a `--list-config` that
+        prints Markdown: key, type, default, description), replacing the hand-written tables;
+  - [ ] Lua API reference generated from the functions registered in `script.rs` (name, arguments, returns,
+        description kept next to each registration), replacing the tables in `SCRIPTING.md`.
+- [ ] **Getting started** page with screenshots or short clips (smart references, peek, `v` hints, dark mode), a FAQ
+      (first-run warnings, where config lives per platform), and per-platform install pages.
+- [ ] **Contributor docs**: `cargo doc --document-private-items` published under the site (`/dev/`), and doc comments
+      on the main types (`App`, `Session`, `Backend`, `View`, `Script`).
+- [ ] Link checks for the docs in CI (`lychee` or `mdbook-linkcheck`).
+
 ## Next up
 
 - [ ] **New window and new tab.** Open another document (or the same one) in a new window or a tab, with
