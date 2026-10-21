@@ -136,7 +136,7 @@ Low:
 - [ ] Thumbnails overview grid (`gt`).
 - [ ] Config hot-reload on file change.
 - [ ] `folio --remote` replies (query state, return JSON) for richer editor/agent integration.
-- [ ] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs.
+- [x] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs (`docs/TESTING.md`).
 - [ ] Packaging: AUR `PKGBUILD`, Homebrew formula, `.desktop` file and icon.
 
 ## Later

@@ -5,6 +5,12 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Added
+- An automated test suite (`cargo test`): about 135 unit and CLI tests covering the MuPDF backend, search, smart
+  references, state files, config, commands and the Lua API. The tests run on small fixture PDFs built from LaTeX
+  sources in `tests/fixtures/`. See `docs/TESTING.md`.
+- Known open bugs (3, 11, 12, 13) have ignored tests that assert the fixed behavior; `cargo test -- --ignored` lists them.
+
 ### Changed
 - **PDF engine: MuPDF replaces poppler.** Rendering is about 40% faster and text extraction (search, smart
   references) about 2× faster. MuPDF is compiled in statically, so folio has no runtime dependencies: no Homebrew

@@ -42,7 +42,7 @@ Hyprland/Wayland). **Work continues on macOS.**
 
 ```sh
 cargo build                      # dev profile is opt-level 1 (deps at 3), fast enough to use
-cargo test                       # keymap + view unit tests
+cargo test                       # unit + CLI tests on tests/fixtures (docs/TESTING.md); -- --ignored = known bugs
 cargo clippy && cargo fmt        # rustfmt.toml: max_width 130
 cargo build --release
 ./target/debug/folio --debug outline|text|links|refs|findref|search FILE [PAGE|QUERY]   # headless backend checks (PAGE is 0-based)
@@ -50,6 +50,9 @@ cargo build --release
 ```
 
 ### Testing without the user
+
+Prefer automated tests: `docs/TESTING.md` covers the suite, the fixture PDFs, and how to add a test for a bug.
+What needs the running app (the GUI, real input, `App` commands) is tested as follows.
 
 The Lua/automation pass used this approach, and it's the template for regression tests. Put a test `init.lua` (and
 `config.toml`) in throwaway dirs (`XDG_CONFIG_HOME`/`XDG_DATA_HOME`). Have it log `PASS`/`FAIL` lines to a file,
