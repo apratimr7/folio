@@ -27,11 +27,10 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 
 - [x] **Marks can't be deleted.** Done: `Ctrl-d` in the `gm` marks list, `delete_mark {char}`, and
       `delete_marks` (the document's lowercase marks).
-- [ ] **Visual mode can't start where you want.** `v` starts at the search match, then the ruler line, then the
-      first word on screen (usually the top). Add hint-based placement: `v` labels lines/words on screen and the
-      chosen label sets the start (like `f` for links). Keep the current fallbacks for when no hint is chosen
-      (e.g. `v` `v`). Also: no way to move the selection start without extending (only `o` swaps ends); consider a
-      caret mode where motions move a cursor until a second `v` anchors it.
+- [x] **Visual mode can't start where you want.** `v` now labels the rows on screen (in the margin), then the
+      words of the chosen row; `v` `v` keeps the old start. Still open: no way to move the selection start without
+      extending (only `o` swaps ends); if the hints feel heavy in use, add a caret mode where motions move a cursor
+      until a second `v` anchors it.
 - [ ] **Lua API gaps:**
   - [ ] Bookmarks and marks: read, add, delete (`folio.bookmarks()`, `folio.marks()`, …).
   - [ ] Highlights: delete and recolor, plus create directly instead of only via `exec`.

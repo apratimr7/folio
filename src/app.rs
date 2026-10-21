@@ -8,7 +8,7 @@ use eframe::egui;
 
 use crate::commands::{self, BUILTINS};
 use crate::config::{self, Config, PageMode, THEME_NAMES, Theme};
-use crate::doc::{DocPos, LinkTarget, Rect};
+use crate::doc::{DocPos, LinkTarget, PageText, Rect};
 use crate::keymap::{self, Chord, Dispatcher, ModeMap, Outcome};
 use crate::refs::{self, RefKind};
 use crate::script::{Effect, FnId, Level, Script, Snapshot};
@@ -133,6 +133,30 @@ fn warn_unknown_settings(toasts: &mut Vec<Toast>, unknown: &[String]) {
     if !unknown.is_empty() {
         notify_into(toasts, format!("config.toml: unknown setting {}", unknown.join(", ")), Level::Warn);
     }
+}
+
+fn line_rect(text: &PageText, s: usize, e: usize) -> Option<Rect> {
+    text.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b))
+}
+
+/// Two line pieces share a row when they overlap vertically by more than half the smaller height.
+fn same_row(a: &Rect, b: &Rect) -> bool {
+    let overlap = a.y1.min(b.y1) - a.y0.max(b.y0);
+    overlap > 0.5 * a.height().min(b.height())
+}
+
+/// The visual rows of a page: the first line index of each row and the row's box. Pieces of a displayed equation
+/// at the same height count as one row.
+pub(crate) fn text_rows(text: &PageText) -> Vec<(usize, Rect)> {
+    let mut rows: Vec<(usize, Rect)> = Vec::new();
+    for (i, &(s, e)) in text.lines().iter().enumerate() {
+        let Some(r) = line_rect(text, s, e) else { continue };
+        match rows.iter_mut().find(|(_, row)| same_row(row, &r)) {
+            Some((_, row)) => *row = row.union(&r),
+            None => rows.push((i, r)),
+        }
+    }
+    rows
 }
 
 /// Labels like `a s d … aa as …`, all the same length so none is a prefix of another.
@@ -1006,9 +1030,15 @@ impl App {
             }
             "bookmarks" => self.open_bookmarks(),
             "visual" => {
-                if self.start_visual() {
-                    self.mode = Mode::Visual;
-                    emit_selection = true;
+                // An explicit place to start (a selection, a search match on screen, the ruler) starts right away;
+                // otherwise pick a line, then a word, with hints.
+                if self.visual_start_is_obvious() {
+                    if self.start_visual() {
+                        self.mode = Mode::Visual;
+                        emit_selection = true;
+                    }
+                } else {
+                    self.start_line_hints();
                 }
             }
             "exit_visual" => {
@@ -1165,6 +1195,78 @@ impl App {
         self.emit("highlight", text);
     }
 
+    fn visual_start_is_obvious(&self) -> bool {
+        let Some(d) = &self.doc else { return false };
+        let match_on_screen = d
+            .search
+            .as_ref()
+            .and_then(|s| s.current.map(|c| &s.hits[c]))
+            .and_then(|h| h.rects.first().map(|r| (h.page, r)))
+            .is_some_and(|(page, r)| d.view.is_visible(page, r.y0, r.y1));
+        d.selection.is_some() || d.ruler.is_some() || match_on_screen
+    }
+
+    /// `v` while line hints are up: skip the hints and start where `v` always did (first word on screen).
+    pub fn visual_without_hints(&mut self) {
+        if let Some(d) = &mut self.doc {
+            d.hints = None;
+        }
+        if self.start_visual() {
+            self.mode = Mode::Visual;
+            if let Some(t) = self.doc.as_mut().and_then(|d| d.selection_text()) {
+                self.emit("selection", t);
+            }
+        }
+    }
+
+    /// Label the text rows on screen, one label per row in a column left of the text, like line numbers.
+    fn start_line_hints(&mut self) {
+        let Some(d) = &mut self.doc else { return };
+        let mut items: Vec<HintItem> = Vec::new();
+        for page in d.view.visible_pages() {
+            let text = d.page_text(page);
+            let rows = text_rows(&text);
+            let left = rows.iter().map(|r| r.1.x0).fold(f32::MAX, f32::min);
+            for (line, rect) in rows {
+                if d.view.is_visible(page, rect.y0, rect.y1) {
+                    // A zero-width target at the text's left edge: the label lands in the margin, aligned for all rows.
+                    let rect = Rect::new(left, rect.y0, left, rect.y1);
+                    items.push(HintItem { label: String::new(), page, rect, action: HintAction::Line(line) });
+                }
+            }
+        }
+        if let [only] = items.as_slice() {
+            let (page, line) = (only.page, if let HintAction::Line(l) = only.action { l } else { 0 });
+            return self.start_word_hints(page, line);
+        }
+        self.show_hints(HintMode::Select, items, "No text on screen");
+    }
+
+    /// Label the words of one row (every line piece on it, e.g. the parts of a displayed equation); a single word
+    /// is selected right away.
+    fn start_word_hints(&mut self, page: usize, line: usize) {
+        let Some(d) = &mut self.doc else { return };
+        let text = d.page_text(page);
+        let lines = text.lines();
+        let Some(row) = lines.get(line).and_then(|&(s, e)| line_rect(&text, s, e)) else { return };
+        let in_row: Vec<(usize, usize)> =
+            lines.into_iter().filter(|&(s, e)| line_rect(&text, s, e).is_some_and(|r| same_row(&r, &row))).collect();
+        let items: Vec<HintItem> = text
+            .words()
+            .into_iter()
+            .filter(|&(s, e)| in_row.iter().any(|&(ls, le)| s >= ls && e <= le))
+            .filter_map(|(s, e)| {
+                let rect = text.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b))?;
+                Some(HintItem { label: String::new(), page, rect, action: HintAction::Word(s, e) })
+            })
+            .collect();
+        if let [only] = items.as_slice() {
+            let item = only.clone();
+            return self.activate_hint(item, HintMode::Select);
+        }
+        self.show_hints(HintMode::Select, items, "No words on this line");
+    }
+
     fn start_visual(&mut self) -> bool {
         let Some(d) = &mut self.doc else { return false };
         if d.selection.is_some() {
@@ -1266,7 +1368,7 @@ impl App {
         }
         if matches.len() == 1 && matches[0].label == h.typed {
             let item = matches[0].clone();
-            let mode = if peek_override { HintMode::Peek } else { h.mode };
+            let mode = if peek_override && h.mode != HintMode::Select { HintMode::Peek } else { h.mode };
             d.hints = None;
             self.activate_hint(item, mode);
         }
@@ -1288,6 +1390,17 @@ impl App {
                 self.open_link(&uri);
             }
             HintAction::Link(LinkTarget::Other(s)) => self.notify(format!("Unsupported link: {s}")),
+            HintAction::Line(line) => {
+                let page = item.page;
+                self.start_word_hints(page, line);
+            }
+            HintAction::Word(start, end) => {
+                d.selection = Some(Selection { page: item.page, anchor: start, cursor: end.saturating_sub(1) });
+                self.mode = Mode::Visual;
+                if let Some(t) = self.doc.as_mut().and_then(|d| d.selection_text()) {
+                    self.emit("selection", t);
+                }
+            }
             HintAction::Ref { kind, label, page, char_idx } => {
                 let display = format!("{} {}", kind.name(), label);
                 if kind == RefKind::Section {

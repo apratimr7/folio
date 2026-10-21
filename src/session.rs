@@ -58,7 +58,16 @@ pub struct Ruler {
 #[derive(Clone, Debug)]
 pub enum HintAction {
     Link(doc::LinkTarget),
-    Ref { kind: RefKind, label: String, page: usize, char_idx: usize },
+    Ref {
+        kind: RefKind,
+        label: String,
+        page: usize,
+        char_idx: usize,
+    },
+    /// Visual-mode start, first step: a text line (index into `PageText::lines`).
+    Line(usize),
+    /// Visual-mode start, second step: a word, as a char range `[start, end)`.
+    Word(usize, usize),
 }
 
 #[derive(Clone, Debug)]
@@ -73,6 +82,8 @@ pub struct HintItem {
 pub enum HintMode {
     Jump,
     Peek,
+    /// Choosing where a visual-mode selection starts: a line, then a word on it.
+    Select,
 }
 
 pub struct Hints {

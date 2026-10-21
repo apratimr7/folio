@@ -70,7 +70,7 @@ commands! {
     "theme" ("name") => "Set the UI theme",
     "add_bookmark" ("label") => "Bookmark the current position",
     "bookmarks" => "List bookmarks",
-    "visual" => "Start keyboard text selection",
+    "visual" => "Start a selection: pick a line, then a word (v again: first word on screen)",
     "exit_visual" => "Leave selection mode",
     "sel_word_next" => "Extend selection by a word",
     "sel_word_prev" => "Shrink/extend selection a word back",

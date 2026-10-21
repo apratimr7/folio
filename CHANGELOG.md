@@ -6,6 +6,9 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- `v` lets you start a selection anywhere on screen: pick a row (labels in the left margin), then a word on it
+  (the rest of the page dims). `v` `v` starts at the first word on screen as before; a search match on screen or the
+  ruler still starts right away.
 - Drop a PDF onto the window to open it.
 - Marks can be deleted: `Ctrl-d` in the marks list (`gm`), `delete_mark {letter}` and `delete_marks` (all of the
   document's lowercase marks).

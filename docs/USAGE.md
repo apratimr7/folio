@@ -82,8 +82,13 @@ schemes, paths) aren't opened, since they could launch files or programs; folio 
 
 ## Selecting, copying and highlighting
 
-`v` starts **visual mode**. The selection begins at the current search match if one is on screen, else the
-ruler line, else the first word on screen. Then:
+`v` starts **visual mode** in two quick steps, so you can begin anywhere on screen without the mouse:
+
+1. Every text row on screen gets a label in the left margin, like line numbers. Type a row's label.
+2. The other rows dim and each word of that row gets a short label. Type one: the selection starts on that word.
+
+`v` again (instead of a label) starts at the first word on screen, and `Esc` cancels. If a search match is on screen
+or the reading ruler is on, `v` starts there right away, without labels. Then:
 
 | keys | |
 |---|---|
