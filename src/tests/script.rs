@@ -263,6 +263,7 @@ fn spawn_and_wait(code: &str) -> String {
 }
 
 #[test]
+#[cfg(unix)] // uses sh
 fn spawn_delivers_stdout_stderr_and_exit_code() {
     let got = spawn_and_wait(
         "folio.spawn({'sh', '-c', 'echo out; echo err >&2; exit 3'}, function(o, e, c) RESULT = o .. '|' .. e .. '|' .. c end)",
@@ -271,6 +272,7 @@ fn spawn_delivers_stdout_stderr_and_exit_code() {
 }
 
 #[test]
+#[cfg(unix)] // uses cat
 fn spawn_passes_stdin() {
     let got = spawn_and_wait("folio.spawn({'cat'}, function(o) RESULT = o end, { stdin = 'piped input' })");
     assert_eq!(got, "piped input");

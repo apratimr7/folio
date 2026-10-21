@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build folio.app on macOS.
+# Build the macOS app bundle (named after the package in Cargo.toml).
 #
 #   ./scripts/build-macos.sh
 #
@@ -15,23 +15,24 @@ fi
 
 cargo build --release
 
+NAME=$(grep -m1 '^name' Cargo.toml | cut -d'"' -f2)
 VERSION=$(grep -m1 '^version' Cargo.toml | cut -d'"' -f2)
 ARCH=$(uname -m)
-APP=target/release/folio.app
+APP="target/release/$NAME.app"
 rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
-cp target/release/folio "$APP/Contents/MacOS/folio"
-sed "s/@VERSION@/$VERSION/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
+cp "target/release/$NAME" "$APP/Contents/MacOS/$NAME"
+sed -e "s/@VERSION@/$VERSION/g" -e "s/@NAME@/$NAME/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
 
 # Ad-hoc signature: required for arm64 binaries to launch at all.
 codesign --force --deep --sign - "$APP"
 
-ZIP="target/release/folio-$VERSION-macos-$ARCH.zip"
+ZIP="target/release/$NAME-$VERSION-macos-$ARCH.zip"
 rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 echo
 echo "built $APP"
 echo "      $ZIP"
 echo
-echo "Run it:  open $APP --args ~/paper.pdf      (or: $APP/Contents/MacOS/folio ~/paper.pdf)"
-echo "Install: cp -R $APP /Applications && ln -sf /Applications/folio.app/Contents/MacOS/folio /usr/local/bin/folio"
+echo "Run it:  open $APP --args ~/paper.pdf      (or: $APP/Contents/MacOS/$NAME ~/paper.pdf)"
+echo "Install: cp -R $APP /Applications && ln -sf /Applications/$NAME.app/Contents/MacOS/$NAME /usr/local/bin/$NAME"

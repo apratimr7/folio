@@ -129,6 +129,7 @@ fn init_config_writes_both_files_once() {
 }
 
 #[test]
+#[cfg(unix)] // remote control is Unix-only for now
 fn remote_without_a_running_instance_fails_clearly() {
     let env = Env::new();
     let socket = env.data.0.join("nobody.sock");

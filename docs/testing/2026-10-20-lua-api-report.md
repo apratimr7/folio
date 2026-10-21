@@ -40,7 +40,7 @@ Two bugs are serious: `J` (`next_page`) stops after one page, and a self-calling
 
 ## Couldn't be tested here
 
-- **Clipboard** (`folio.clipboard`, and built-in copy commands). On Wayland only a focused window may set the clipboard, and the hidden test window can't take focus. Nothing reached the clipboard in this setup, even for built-in commands. You confirmed earlier that `y` copies in normal use. Recheck `folio.clipboard` by hand.
+- **Clipboard** (`folio.clipboard`, and built-in copy commands). On Wayland only a focused window may set the clipboard, and the hidden test window can't take focus. Nothing reached the clipboard in this setup, even for built-in commands. `y` was confirmed to copy in normal use. Recheck `folio.clipboard` by hand.
 
 ## What works
 

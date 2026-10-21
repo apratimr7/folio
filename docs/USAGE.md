@@ -168,3 +168,5 @@ when `XDG_RUNTIME_DIR` isn't set (the usual case on macOS). If that instance is 
 used. Set `FOLIO_SOCKET` to target a specific one, e.g. `FOLIO_SOCKET=$TMPDIR/folio-<pid>.sock`.
 Sockets are private to your user (mode 0600). A socket path can be at most 104 bytes on macOS (108 on Linux); if
 it's longer, remote control is disabled and folio shows a warning.
+
+Remote control isn't available on Windows yet (it needs a named-pipe transport); `folio --remote` says so.

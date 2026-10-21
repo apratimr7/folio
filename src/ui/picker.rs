@@ -131,7 +131,7 @@ impl Picker {
     /// The part of the query used for matching (the file picker matches basenames).
     fn match_query(&self) -> &str {
         if self.kind == PickerKind::Files {
-            self.query.rsplit('/').next().unwrap_or("")
+            self.query.rsplit(['/', '\\']).next().unwrap_or("")
         } else {
             self.query.split_whitespace().next().filter(|_| self.kind == PickerKind::Commands).unwrap_or(&self.query)
         }

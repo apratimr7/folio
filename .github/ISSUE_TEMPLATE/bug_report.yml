@@ -1,0 +1,30 @@
+name: Bug report
+description: Something doesn't work as expected
+labels: [bug]
+body:
+  - type: dropdown
+    id: platform
+    attributes:
+      label: Platform
+      options: [macOS (Apple Silicon), macOS (Intel), Windows, Linux (Wayland), Linux (X11), Other]
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: folio version
+      description: Output of `folio --version`, or the release you downloaded.
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened?
+      description: What you did, what you expected, and what happened instead. Keys you pressed help a lot.
+    validations:
+      required: true
+  - type: textarea
+    id: details
+    attributes:
+      label: Details
+      description: Error messages, a crash report, your `config.toml`/`init.lua` if relevant, or a PDF that shows it.

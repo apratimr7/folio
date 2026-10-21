@@ -23,8 +23,13 @@ pub struct MupdfDoc {
 
 impl MupdfDoc {
     pub fn open(path: &Path) -> Result<Self> {
-        let abs = std::fs::canonicalize(path).with_context(|| format!("cannot open {}", path.display()))?;
-        let doc = Document::open(abs.as_path()).map_err(|e| anyhow!("failed to load document: {e}"))?;
+        let abs = super::canonicalize(path).with_context(|| format!("cannot open {}", path.display()))?;
+        // MuPDF takes raw bytes on Unix (any file name works) but UTF-8 on Windows.
+        #[cfg(unix)]
+        let file = abs.as_path();
+        #[cfg(not(unix))]
+        let file = abs.to_str().ok_or_else(|| anyhow!("{}: the path isn't valid Unicode", abs.display()))?;
+        let doc = Document::open(file).map_err(|e| anyhow!("failed to load document: {e}"))?;
         if doc.needs_password().unwrap_or(false) {
             bail!("the document is password-protected");
         }

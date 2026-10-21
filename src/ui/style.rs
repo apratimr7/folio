@@ -75,17 +75,22 @@ pub fn apply(ctx: &egui::Context, theme: &Theme, general: &General) {
     });
 }
 
-/// Resolve the interface font: the configured path, else Inter / Noto / Cantarell via fontconfig.
+/// Resolve the interface font: the configured path, else Inter / Noto / Cantarell via fontconfig, else the system
+/// font (SF on macOS, Segoe UI on Windows).
 pub fn install_fonts(ctx: &egui::Context, general: &General) {
     let ui = general.ui_font.clone().or_else(|| {
         find_font(
             &["Inter", "Inter Variable", "Noto Sans", "Cantarell", "IBM Plex Sans"],
-            &["/System/Library/Fonts/SFNS.ttf", "/System/Library/Fonts/Supplemental/Arial.ttf"],
+            &[
+                "/System/Library/Fonts/SFNS.ttf",
+                "/System/Library/Fonts/Supplemental/Arial.ttf",
+                "C:\\Windows\\Fonts\\segoeui.ttf",
+            ],
         )
     });
     let mono = find_font(
         &["JetBrains Mono", "JetBrainsMono Nerd Font", "Fira Code"],
-        &["/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc"],
+        &["/System/Library/Fonts/SFNSMono.ttf", "/System/Library/Fonts/Menlo.ttc", "C:\\Windows\\Fonts\\consola.ttf"],
     );
     let mut fonts = FontDefinitions::default();
     for (name, path, family) in [("ui", ui, FontFamily::Proportional), ("mono", mono, FontFamily::Monospace)] {
@@ -101,7 +106,7 @@ pub fn install_fonts(ctx: &egui::Context, general: &General) {
 fn find_font(families: &[&str], paths: &[&str]) -> Option<std::path::PathBuf> {
     for family in families {
         let Ok(out) = std::process::Command::new("fc-match").args(["-f", "%{family}\n%{file}", family]).output() else {
-            break; // no fontconfig (e.g. macOS)
+            break; // no fontconfig (macOS, Windows)
         };
         let s = String::from_utf8_lossy(&out.stdout);
         let mut lines = s.lines();

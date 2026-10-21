@@ -113,7 +113,7 @@ Low:
       (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
 - [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
 - [x] **Remember window size and position** (eframe persistence, `window.ron` in the data dir). Saving is
-      verified; restoring couldn't be observed here because a tiling window manager (AeroSpace) places windows.
+      verified; restoring couldn't be observed on the test machine because a tiling window manager places windows.
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).
 - [ ] **Scrollbar / position indicator** you can drag, at least on hover.
 - [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).
@@ -178,9 +178,18 @@ System and safety:
 - [ ] **New window and new tab.** Open another document (or the same one) in a new window or a tab, with
       commands for both (`new_window`, `new_tab`, `next_tab`/`prev_tab`, `close_tab`) and keys. `--remote` and
       Lua need to address a window/tab. ROADMAP "Later" also lists a split view of the same document.
-- [ ] **Windows build.** The code is mostly portable. Needs: a named-pipe (or TCP localhost) variant of `ipc.rs`,
-      config/data dirs (`%APPDATA%`), poppler from vcpkg or MSYS2, font discovery, and a CI job that uploads a
-      zipped `.exe` with its DLLs.
+- [x] **Windows build.** Builds and tests in CI (`windows-latest`, MSVC) and uploads a zipped `folio.exe`
+      (`scripts/build-windows.ps1`). Config in `%APPDATA%\folio`, data in `%LOCALAPPDATA%\folio`. Follow-ups:
+  - [ ] First manual runs on real Windows machines (first testers): rendering, fonts (Segoe UI fallback),
+        HiDPI scaling, keyboard (Ctrl bindings, AltGr layouts), file picker with `C:\` paths and backslashes,
+        drag and drop, opening links, window-geometry restore, `--help`/`--debug` output in a terminal.
+  - [ ] Remote control: a named-pipe transport for `ipc/` (`--remote`, `FOLIO_SOCKET`), e.g. with the
+        `interprocess` crate. `ipc/windows.rs` is a stub today.
+  - [ ] Clean quit on console Ctrl-C / logoff (`SetConsoleCtrlHandler` or the `ctrlc` crate), like the Unix
+        signal handling.
+  - [ ] Packaging: an icon and version info in the `.exe` (`winres`), optionally an installer (MSI/winget), and
+        code signing to avoid SmartScreen warnings.
+  - [ ] The Lua `spawn` tests are Unix-only (`sh`, `cat`); add Windows equivalents (`cmd /C`).
 - [ ] Two-page / book mode, and a horizontal-scroll mode for slides.
 - [ ] Presentation mode (one page, fit page, no chrome).
 - [ ] SyncTeX: forward search via `--remote 'synctex file.tex:line'` and inverse search to an editor command.

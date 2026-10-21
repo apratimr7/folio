@@ -214,6 +214,19 @@ pub trait Backend {
     fn metadata(&self) -> Metadata;
 }
 
+/// `std::fs::canonicalize`, minus the `\\?\` prefix Windows adds (`\\?\C:\a.pdf` → `C:\a.pdf`), so paths stay
+/// readable in titles and stable as state keys.
+pub fn canonicalize(path: &Path) -> std::io::Result<std::path::PathBuf> {
+    let p = std::fs::canonicalize(path)?;
+    if cfg!(windows)
+        && let Some(rest) = p.to_str().and_then(|s| s.strip_prefix(r"\\?\"))
+        && rest.as_bytes().get(1) == Some(&b':')
+    {
+        return Ok(rest.into());
+    }
+    Ok(p)
+}
+
 pub fn open(path: &Path) -> Result<Box<dyn Backend>> {
     Ok(Box::new(MupdfDoc::open(path)?))
 }
