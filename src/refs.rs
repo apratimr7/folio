@@ -87,6 +87,13 @@ pub fn detect(text: &PageText) -> Vec<Reference> {
     let p = patterns();
     let (s, b2c) = page_string(text);
     let mut out: Vec<Reference> = Vec::new();
+    // A caption or theorem header ("Fig. 1.", "Theorem 2.3:") at the start of a line defines the
+    // thing rather than referring to it.
+    let is_header = |start: usize, end: usize| {
+        let (start, end) = (b2c[start], b2c[end]);
+        let line_start = text.chars[..start].iter().rev().find(|c| !matches!(c, ' ' | '\t')).is_none_or(|&c| c == '\n');
+        line_start && matches!(text.chars.get(end), Some('.' | ':'))
+    };
     let mut push = |kind, label: String, start: usize, end: usize| {
         let (start, end) = (b2c[start], b2c[end]);
         if !out.iter().any(|r| r.start < end && start < r.end) {
@@ -95,14 +102,23 @@ pub fn detect(text: &PageText) -> Vec<Reference> {
     };
     for c in p.theorem.captures_iter(&s) {
         let m = c.get(0).unwrap();
+        if is_header(m.start(), m.end()) {
+            continue;
+        }
         push(RefKind::Theorem, format!("{} {}", &c[1], &c[2]), m.start(), m.end());
     }
     for c in p.figure.captures_iter(&s) {
         let m = c.get(0).unwrap();
+        if is_header(m.start(), m.end()) {
+            continue;
+        }
         push(RefKind::Figure, c[1].to_string(), m.start(), m.end());
     }
     for c in p.table.captures_iter(&s) {
         let m = c.get(0).unwrap();
+        if is_header(m.start(), m.end()) {
+            continue;
+        }
         push(RefKind::Table, c[1].to_string(), m.start(), m.end());
     }
     for c in p.equation.captures_iter(&s) {
@@ -137,6 +153,14 @@ pub fn is_bibliography(text: &PageText) -> bool {
         let line = line.trim();
         line.starts_with("references") || line.starts_with("bibliography") || line.ends_with("references")
     })
+}
+
+/// A heading followed by a page number (`3.5 Generalizations 29`, `2 Strings . . . 7`).
+fn is_toc_line(line: &str) -> bool {
+    let mut words = line.split_whitespace();
+    let Some(last) = words.next_back() else { return false };
+    let title_words = words.skip(1).filter(|w| w.chars().any(char::is_alphabetic)).count();
+    title_words > 0 && last.len() <= 4 && last.chars().all(|c| c.is_ascii_digit())
 }
 
 /// Candidate definitions of a reference on a page: `(start, end, strong)`.
@@ -195,24 +219,126 @@ pub fn find_definitions(text: &PageText, kind: RefKind, label: &str) -> Vec<(usi
                     if next.is_none_or(|c| !c.is_ascii_digit()) {
                         out.push((ls + lead_chars, le, matches!(next, Some('.' | ' ' | '(' | ':'))));
                     }
+                } else if let Some((word, num)) = label.split_once(' ')
+                    && let Some(after) = trimmed.strip_prefix(num)
+                    && after.starts_with(char::is_whitespace)
+                {
+                    // Number-first style (Rudin, Apostol): "2.36 Theorem. …".
+                    let after = after.trim_start();
+                    let rest = after.strip_prefix(word).or_else(|| after.strip_prefix(word.to_uppercase().as_str()));
+                    if let Some(rest) = rest
+                        && matches!(rest.chars().next(), Some('.' | ' ' | '(' | ':') | None)
+                    {
+                        out.push((ls + lead_chars, le, true));
+                    }
                 }
             }
             RefKind::Section => {
                 let l = label.trim_end_matches('.');
+                // A table-of-contents line ends with a page number: "3.5 Generalizations 29".
+                let strong = !is_toc_line(trimmed);
                 if let Some(after) = trimmed.strip_prefix(l) {
                     let after_t = after.trim_start_matches('.');
                     // "3.2 Results" — the label followed by a capitalized title.
                     if after_t.starts_with(' ') && after_t.trim_start().chars().next().is_some_and(char::is_uppercase) {
-                        out.push((ls + lead_chars, le, true));
+                        out.push((ls + lead_chars, le, strong));
                     }
                 }
                 for pre in ["Appendix ", "APPENDIX ", "Chapter ", "CHAPTER "] {
                     if trimmed.strip_prefix(pre).is_some_and(|r| r.starts_with(l)) {
-                        out.push((ls + lead_chars, le, true));
+                        out.push((ls + lead_chars, le, strong));
                     }
                 }
             }
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::doc::Rect;
+
+    /// A page with one text line per entry, 10 pt per char and 12 pt per line.
+    fn page(lines: &[&str]) -> PageText {
+        let mut t = PageText::default();
+        for (li, line) in lines.iter().enumerate() {
+            if li > 0 {
+                t.chars.push('\n');
+                t.rects.push(Rect::default());
+            }
+            let y = li as f32 * 12.0;
+            for (ci, c) in line.chars().enumerate() {
+                let x = ci as f32 * 10.0;
+                t.chars.push(c);
+                t.rects.push(Rect::new(x, y, x + 10.0, y + 10.0));
+            }
+        }
+        t
+    }
+
+    fn line_of(t: &PageText, start: usize) -> String {
+        t.chars[start..].iter().take_while(|&&c| c != '\n').collect()
+    }
+
+    #[test]
+    fn theorem_kind_first() {
+        let t = page(&["some text", "Theorem 2.36. Every compact set is closed."]);
+        let defs = find_definitions(&t, RefKind::Theorem, "Theorem 2.36");
+        assert_eq!(defs.len(), 1);
+        assert!(defs[0].2);
+    }
+
+    #[test]
+    fn theorem_number_first() {
+        let t = page(&[
+            "By Theorem 2.36 we have",
+            "2.36 Theorem. If {K_a} is a collection of compact subsets",
+            "3.9 Definition (Cauchy) A sequence",
+            "2.361 Theorem. Not this one",
+            "2.36 Corollary. Not this kind",
+        ]);
+        let defs = find_definitions(&t, RefKind::Theorem, "Theorem 2.36");
+        assert_eq!(defs.len(), 1);
+        assert!(defs[0].2);
+        assert!(line_of(&t, defs[0].0).starts_with("2.36 Theorem."));
+        let defs = find_definitions(&t, RefKind::Theorem, "Definition 3.9");
+        assert_eq!(defs.len(), 1);
+        assert!(defs[0].2);
+        assert!(find_definitions(&t, RefKind::Theorem, "Lemma 2.36").is_empty());
+    }
+
+    #[test]
+    fn captions_are_not_references() {
+        let t = page(&[
+            "Fig. 1. The Penrose diagram of a black hole.",
+            "  Table 2: Parameters used",
+            "Theorem 3.1. Let M be a manifold.",
+            "as shown in Fig. 1, and Table 2 and Theorem 3.1 imply",
+            "Figure 4 shows the horizon",
+        ]);
+        let refs = detect(&t);
+        let found: Vec<(RefKind, &str)> = refs.iter().map(|r| (r.kind, r.label.as_str())).collect();
+        assert_eq!(
+            found,
+            vec![(RefKind::Figure, "1"), (RefKind::Table, "2"), (RefKind::Theorem, "Theorem 3.1"), (RefKind::Figure, "4"),]
+        );
+        // All found references are in running text, not the captions on lines 0-2.
+        assert!(refs.iter().all(|r| t.chars[..r.start].iter().filter(|&&c| c == '\n').count() >= 3));
+    }
+
+    #[test]
+    fn section_toc_line_is_weak() {
+        let t = page(&["Contents", "3.4 Black holes 27", "3.5 Generalizations 29", "3.6 Outlook . . . . 31"]);
+        let defs = find_definitions(&t, RefKind::Section, "3.5");
+        assert_eq!(defs.len(), 1);
+        assert!(!defs[0].2);
+        let t = page(&["the end of 3.4.", "3.5 Generalizations", "We now generalize"]);
+        let defs = find_definitions(&t, RefKind::Section, "3.5");
+        assert_eq!(defs.len(), 1);
+        assert!(defs[0].2);
+        assert!(is_toc_line("3.6 Outlook . . . . 31"));
+        assert!(!is_toc_line("3.5 Generalizations"));
+    }
 }
