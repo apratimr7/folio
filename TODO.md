@@ -29,8 +29,7 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       `delete_marks` (the document's lowercase marks).
 - [x] **Visual mode can't start where you want.** `v` now labels the rows on screen (in the margin), then the
       words of the chosen row; `v` `v` keeps the old start. Still open: no way to move the selection start without
-      extending (only `o` swaps ends); if the hints feel heavy in use, add a caret mode where motions move a cursor
-      until a second `v` anchors it.
+      extending (only `o` swaps ends): caret mode is listed as optional under Later.
 - [ ] **Lua API gaps:**
   - [ ] Bookmarks and marks: read, add, delete (`folio.bookmarks()`, `folio.marks()`, …).
   - [ ] Highlights: delete and recolor, plus create directly instead of only via `exec`.
@@ -69,8 +68,7 @@ Medium:
       back to the newest live `folio-*.sock`. Handle SIGTERM as a normal close (it skips saving today).
   - [x] Portable cleanup by connecting, client fallback, socket mode 0600.
   - [x] SIGTERM/SIGHUP/SIGINT close normally (save, `quit` hook, socket removed).
-- [ ] **7. Minimum Rust is 1.95, not 1.88** (egui 0.37). Fix `rust-version` in `Cargo.toml`, `BUILDING.md`,
-      `CLAUDE.md`.
+- [x] **7. Minimum Rust is 1.95, not 1.88** (egui 0.37). Fixed in `Cargo.toml`, `BUILDING.md` and `CLAUDE.md`.
 
 Low:
 
@@ -122,6 +120,59 @@ Low:
 - [ ] **Set as default PDF viewer** works only after the Finder `odoc` fix (Known issues).
 - [ ] Printed page numbers: `:8` is always the physical page; add a syntax for the printed page (e.g. `:p8`).
 
+## Configuration space (to build in one go)
+
+Everything below is hard-coded today. Build it as one pass: settings in `config.toml`, the same names readable and
+writable from Lua (`folio.get`/`folio.set`, see "Lua API gaps"), validated with warnings like the existing keys,
+and documented in `docs/CONFIGURATION.md`. Current value and location in parentheses.
+
+**First (asked for):**
+- [ ] **Dimming amounts:** the visual-mode word-hint dim (alpha 90 dark / 60 light, `ui/frame.rs`), the reading
+      ruler's "already read" dim (40 / 18, `ui/frame.rs`), and an on/off for each.
+
+Hints and visual mode:
+- [ ] Visual start: `hints` (row → word) | `first_word` (old behavior); whether a search match or the ruler skips
+      the hints.
+- [ ] Hint label font size (12.5 rows/links, 11 words), badge placement (left/above/over), outline boxes on/off.
+- [ ] Separate `hint_chars` per hint kind (links, refs, rows, words).
+
+Reading and navigation:
+- [ ] Default fit for new documents (`width` today), zoom limits (10–1200%, `view.rs` `MIN_ZOOM`/`MAX_ZOOM`).
+- [ ] Smooth-scroll speed (exponential factor 22, `view.rs`), Ctrl/Cmd+wheel and pinch zoom sensitivity.
+- [ ] Where jumps land on screen (5–30% from the top depending on the jump, `app.rs`), and where the ruler sits.
+- [ ] Jump-list size (200, `session.rs`), recent-files size (200, `store.rs`), search-history size.
+- [ ] Search: smart case on/off, default direction; later regex and whole word (see Next up).
+- [ ] Page layout (continuous today; single page, two-page, horizontal later).
+
+Peek:
+- [ ] Peek window size (70% of the window width), initial zoom, scroll step (40/200 pt), zoom step (1.15).
+
+Interface:
+- [ ] Toasts: lifetime (3.8 s), max count (8), position, minimum level shown.
+- [ ] Status bar: height (28), which fields and their order (mode, title, section, search, zoom, page, label, %).
+- [ ] Sidebar and text panel default widths and side; picker width (62%, 380–760 px) and font size (16).
+- [ ] UI scale (egui zoom factor) separate from `ui_font_size`; a monospace font setting; heading/small sizes
+      (×1.3 / ×0.82, `ui/style.rs`).
+- [ ] Panel shadow strength, badge and panel corner radius beyond `radius`, window title format.
+- [ ] Theme: follow the system light/dark setting and accent color (see Polishing).
+
+Page rendering:
+- [ ] Dark-mode link lift strength (`MIN_LUMA` 150, `render.rs`), dark-mode algorithm choice, page shadow on/off.
+- [ ] Texture budget (320 MB, `ui/frame.rs`), tile size (1024, `render.rs`), cache eviction (4 s), prefetch
+      distance. Sensible automatic defaults from RAM/VRAM; overrides for low-memory machines.
+
+Files and documents:
+- [ ] Autosave interval (8 s, `ui/frame.rs`), auto-reload poll interval (0.7 s) and stability check.
+- [ ] Remember window geometry on/off; per-document vs global zoom.
+- [ ] Highlights: default color (first of `[theme.highlight]`), Markdown export template.
+- [ ] Bookmark label default (current section title).
+
+System and safety:
+- [ ] Link schemes that open without asking (`http`, `https`, `mailto` today) and the opener command
+      (`open`/`xdg-open`).
+- [ ] Remote control on/off and socket path; whether `--remote lua …` is allowed.
+- [ ] Lua: command-loop limit (24), `selection` hook debounce (see Lua report items).
+
 ## Next up
 
 - [ ] **New window and new tab.** Open another document (or the same one) in a new window or a tab, with
@@ -147,8 +198,30 @@ Low:
 
 ## Later
 
+Optional:
+
+- [ ] **Caret mode for visual selection.** The row → word hints work well, so this is optional: after landing,
+      motions move a caret without selecting until `v` anchors it (exact start positions, vim-like).
+
+### Polishing
+
+- [ ] **A sensible default config.** Once the configuration space above exists, choose defaults deliberately
+      (today's values are fine for now) and ship them as the commented `config/config.toml`.
+- [ ] **UI enhancements** (from the native-feel discussion):
+  - [ ] Follow the system light/dark mode and accent color; respect reduced-motion and contrast settings.
+  - [ ] Icons (status bar, sidebar, palette), consistent spacing and type scale, subtle shadows and short
+        animations for panels and peek.
+  - [ ] Thumbnails sidebar; a slim scrollbar shown on hover (also in Missing basics).
+  - [ ] Native file dialog as an option next to the keyboard file picker.
+  - [ ] Screen reader support (egui AccessKit).
+  - [ ] macOS: native menu bar with standard shortcuts, transparent title bar with content under the window
+        buttons, SF Pro and the system accent, recent documents in the Dock menu, `Cmd-,` for settings.
+  - [ ] Windows: Mica/Acrylic backdrop, dark title bar, Segoe UI Variable, system accent.
+  - [ ] Linux: dark mode and accent from the desktop portal, portal file chooser, header bar on Wayland.
 - [ ] **UI appearance config:** translucent and blurred panels/background (macOS vibrancy, KDE/Hyprland blur
       via a transparent window), panel opacity, shadows and animation settings, set in a `[ui]` section of
       `config.toml` and from Lua.
+
+### Other
 - [ ] **Project website** (last): what folio is, screenshots/short clips of smart references, peek and Lua
       automation, install instructions per platform, links to the docs and GitHub releases.
