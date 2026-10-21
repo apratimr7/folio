@@ -739,6 +739,11 @@ impl App {
                 self.mode = Mode::Normal;
                 return;
             }
+            "delete_mark" if args.is_empty() => return self.ask(name, PromptKind::CommandArg(name.into()), String::new()),
+            "delete_mark" if args.starts_with(|c: char| c.is_ascii_uppercase()) => {
+                let c = args.chars().next().unwrap_or_default();
+                return self.delete_mark(c);
+            }
             "echo" => return self.notify(args.to_string()),
             "open_url" => return self.open_link(args),
             "screenshot" => {
@@ -938,6 +943,16 @@ impl App {
                 }
             }
             "marks" => self.open_marks(),
+            "delete_mark" => {
+                let c = args.chars().next().unwrap_or_default();
+                self.delete_mark(c);
+            }
+            "delete_marks" => {
+                let n = d.state.marks.len();
+                d.state.marks.clear();
+                d.save_state();
+                self.notify(format!("Deleted {n} mark{}", if n == 1 { "" } else { "s" }));
+            }
             "jump_back" => {
                 if d.hist_idx == d.history.len() {
                     d.push_history();
@@ -1088,6 +1103,26 @@ impl App {
         } else {
             self.ctx.copy_text(target.to_string());
             self.warn(format!("Not opening '{target}' (only http, https and mailto links open); copied it"));
+        }
+    }
+
+    /// Delete a mark: lowercase ones from the current document, uppercase ones globally.
+    fn delete_mark(&mut self, c: char) {
+        let removed = if c.is_ascii_uppercase() {
+            let r = self.global.marks.remove(&c).is_some();
+            self.global.save();
+            r
+        } else if let Some(d) = &mut self.doc {
+            let r = d.state.marks.remove(&c).is_some();
+            d.save_state();
+            r
+        } else {
+            false
+        };
+        if removed {
+            self.notify(format!("Mark '{c}' deleted"));
+        } else {
+            self.notify(format!("Mark '{c}' not set"));
         }
     }
 
@@ -1423,7 +1458,7 @@ impl App {
         if items.is_empty() {
             return self.notify("No marks (m{letter} sets one)");
         }
-        self.picker = Some(Picker::new(PickerKind::Marks, "Marks", items));
+        self.picker = Some(Picker::new(PickerKind::Marks, "Marks  ·  Ctrl-D deletes", items));
     }
 
     pub fn open_recent_picker(&mut self) {
@@ -1496,6 +1531,16 @@ impl App {
             PickerEvent::Delete => {
                 let kind = p.kind;
                 let cur = p.current().map(|i| i.data.clone());
+                if let (PickerKind::Marks, Some(PickData::Mark(c))) = (kind, &cur) {
+                    let selected = p.selected;
+                    self.delete_mark(*c);
+                    self.picker = None;
+                    self.open_marks();
+                    if let Some(p) = &mut self.picker {
+                        p.selected = selected.min(p.filtered.len().saturating_sub(1));
+                    }
+                    return;
+                }
                 let Some(d) = &mut self.doc else { return };
                 match (kind, cur) {
                     (PickerKind::Highlights, Some(PickData::Highlight(i))) => {
