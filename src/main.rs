@@ -69,6 +69,9 @@ fn run(path: Option<PathBuf>) -> Result<()> {
             .with_app_id("folio")
             .with_inner_size([1100.0, 900.0])
             .with_min_inner_size([360.0, 300.0]),
+        // Window size and position are restored from eframe's own state file, next to folio's data.
+        persist_window: true,
+        persistence_path: Some(config::data_dir().join("window.ron")),
         ..Default::default()
     };
     eframe::run_native("folio", options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, path)))))

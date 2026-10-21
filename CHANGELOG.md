@@ -6,6 +6,7 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Changed
+- The window size and position are remembered between sessions (`window.ron` in the data directory).
 - **PDF engine: MuPDF replaces poppler.** Rendering is about 40% faster and text extraction (search, smart
   references) about 2× faster. MuPDF is compiled in statically, so folio has no runtime dependencies: no Homebrew
   poppler on macOS, no `poppler-glib`/`cairo` packages on Linux, and the macOS app no longer bundles dylibs.

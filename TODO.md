@@ -109,7 +109,8 @@ Low:
 - [ ] **Password-protected PDFs:** they now fail with a clear "password-protected" error; add a prompt
       (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
 - [ ] **Drag and drop** a PDF onto the window.
-- [ ] **Remember window size and position** (always opens at 1100×900).
+- [x] **Remember window size and position** (eframe persistence, `window.ron` in the data dir). Saving is
+      verified; restoring couldn't be observed here because a tiling window manager (AeroSpace) places windows.
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).
 - [ ] **Scrollbar / position indicator** you can drag, at least on hover.
 - [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).

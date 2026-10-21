@@ -11,7 +11,7 @@ readme = "README.md"
 [dependencies]
 anyhow = "1.0.104"
 crossbeam-channel = "0.5.17"
-eframe = { version = "0.37.0", default-features = false, features = ["clipboard", "default_fonts", "glow", "wayland", "x11", "system_fonts"] }
+eframe = { version = "0.37.0", default-features = false, features = ["clipboard", "default_fonts", "glow", "persistence", "wayland", "x11", "system_fonts"] }
 mlua = { version = "0.12.2", features = ["lua54", "vendored"] }
 mupdf = { version = "0.8.0", default-features = false, features = ["base14-fonts"] }
 nucleo-matcher = "0.3.1"
