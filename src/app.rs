@@ -1817,18 +1817,16 @@ fn human_size(b: u64) -> String {
 
 fn save_png(path: &Path, img: &egui::ColorImage) -> anyhow::Result<()> {
     let [w, h] = img.size;
-    let mut surface = cairo::ImageSurface::create(cairo::Format::Rgb24, w as i32, h as i32)?;
-    let stride = surface.stride() as usize;
-    {
-        let mut data = surface.data()?;
-        for (i, px) in img.pixels.iter().enumerate() {
-            let (x, y) = (i % w, i / w);
-            let v = u32::from_be_bytes([0, px.r(), px.g(), px.b()]).to_ne_bytes();
-            data[y * stride + x * 4..y * stride + x * 4 + 4].copy_from_slice(&v);
-        }
+    let mut pix = mupdf::Pixmap::new_with_w_h(&mupdf::Colorspace::device_rgb(), w as i32, h as i32, false)
+        .map_err(|e| anyhow::anyhow!("{e}"))?;
+    let stride = pix.stride() as usize;
+    let data = pix.samples_mut();
+    for (i, px) in img.pixels.iter().enumerate() {
+        let (x, y) = (i % w, i / w);
+        data[y * stride + x * 3..y * stride + x * 3 + 3].copy_from_slice(&[px.r(), px.g(), px.b()]);
     }
     let mut f = std::fs::File::create(path)?;
-    surface.write_to_png(&mut f)?;
+    pix.write_to(&mut f, mupdf::ImageFormat::PNG).map_err(|e| anyhow::anyhow!("{e}"))?;
     Ok(())
 }
 

@@ -5,7 +5,24 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Changed
+- **PDF engine: MuPDF replaces poppler.** Rendering is about 40% faster and text extraction (search, smart
+  references) about 2× faster. MuPDF is compiled in statically, so folio has no runtime dependencies: no Homebrew
+  poppler on macOS, no `poppler-glib`/`cairo` packages on Linux, and the macOS app no longer bundles dylibs.
+  Building needs a C compiler, `make` and libclang. Text lines are joined across MuPDF's wide-gap splits, and
+  columns stay apart in reading order. Password-protected PDFs now give a clear "password-protected" error.
+- **License: GNU AGPL v3.0 or later** (required by MuPDF). See `LICENSE`.
+- Minimum Rust is 1.95 (egui 0.37 needs it; the docs said 1.88).
+- CI: no system PDF libraries, newer `actions/checkout`/`upload-artifact` (Node 20 deprecation), and a build cache.
+- `folio.state()` is filled in while `init.lua` runs, so `mode` and `theme` are no longer empty.
+- The `search` hook also fires for `search …` run from Lua or `--remote`.
+- The first `page` hook fires after the saved position is restored, not for page 1.
+- `--remote` doesn't split `lua …` lines on `;`.
+- `folio.prompt` calls back with `nil` when canceled. `folio.pick` passes `(index, item)`, or `nil` when canceled.
+
 ### Fixed
+- The `mupdf` bindings crashed on damaged outlines (an item without a title) and panicked on links MuPDF can't
+  resolve. Patched in `vendor/mupdf` (see `FOLIO-PATCHES.md` there).
 - `J` / `next_page` moved only one page; later presses stayed put. It now steps every time, including during smooth
   scrolling, and with counts (`3J`).
 - A Lua command that called itself through `folio.exec` crashed folio (stack overflow). Runaway chains are now
@@ -17,13 +34,6 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 - Hint labels can use any characters from `hint_chars` (e.g. `;`), not just letters and digits.
 - Notifications: up to 8 are kept, repeats collapse into one, long messages are truncated so they stay on screen,
   and Lua errors show the message without the stack traceback (the full trace goes to stderr).
-
-### Changed
-- `folio.state()` is filled in while `init.lua` runs, so `mode` and `theme` are no longer empty.
-- The `search` hook also fires for `search …` run from Lua or `--remote`.
-- The first `page` hook fires after the saved position is restored, not for page 1.
-- `--remote` doesn't split `lua …` lines on `;`.
-- `folio.prompt` calls back with `nil` when canceled. `folio.pick` passes `(index, item)`, or `nil` when canceled.
 
 ## [0.1.0] — 2026-10-19
 

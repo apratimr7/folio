@@ -19,11 +19,11 @@ Rust. **v0.1.0**. Linux and macOS.
 ## Quick start
 
 ```sh
-# Linux (Arch: pacman -S poppler-glib; Debian/Ubuntu: apt install libpoppler-glib-dev libcairo2-dev)
+# Linux (needs a C compiler, make and libclang; Debian/Ubuntu: apt install clang libclang-dev libxkbcommon-dev libgl1-mesa-dev)
 cargo build --release
 ./target/release/folio paper.pdf
 
-# macOS (Homebrew)
+# macOS (Xcode command line tools)
 ./scripts/build-macos.sh
 open target/release/folio.app --args paper.pdf
 
@@ -60,3 +60,8 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 
 0.1.0 is the first usable version, tested on Linux (Hyprland/Wayland). The macOS build type-checks and has a build
 script and CI job, but hasn't been run on a Mac yet; see [TODO.md](TODO.md).
+
+## License
+
+folio is free software under the [GNU AGPL v3.0 or later](LICENSE). It renders with [MuPDF](https://mupdf.com)
+(AGPL-3.0, Artifex) through the [mupdf-rs](https://github.com/messense/mupdf-rs) bindings.

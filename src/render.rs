@@ -1,6 +1,6 @@
 //! Background page rendering.
 //!
-//! Each worker thread owns its own document instance (poppler objects are not
+//! Each worker thread owns its own document instance (MuPDF documents are not
 //! `Send`). The UI publishes the full set of tiles it currently wants, most
 //! important first; workers pick the first one that is not done yet, so stale
 //! requests (pages scrolled past, old zoom levels) are dropped for free.

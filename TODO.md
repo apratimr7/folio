@@ -10,8 +10,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] CI passes (Linux, macOS arm64/x86_64), but the workflow's actions use Node 20 and need bumping
       (`actions/checkout`, `actions/upload-artifact`).
 - [ ] **macOS: still unchecked on real hardware** after the 2026-10-20 test pass (which covered everything else, see
-      below; trackpad scrolling and pinch zoom were confirmed by hand): Retina sharpness, the Intel build, and the
-      bundled `.app` on a Mac without Homebrew.
+      below; trackpad scrolling and pinch zoom were confirmed by hand): Retina sharpness and the Intel build. (Since the
+      switch to MuPDF the app has no Homebrew/dylib dependencies.)
 - [ ] After an auto-reload where the text reflowed (an edited LaTeX source), saved highlights keep their old
       positions and char offsets. Re-anchor them by searching for their text near the old place.
 - [ ] Selections can't span pages (visual mode stays on the page where it started).
@@ -21,7 +21,7 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] Page rotation (`/Rotate`) is handled by poppler's page size, but no rotate command exists yet.
 - [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
 - [ ] PDF link-border annotations (red hyperref boxes) are drawn as authored; add an option to hide them.
-- [ ] No license chosen yet. Pick one before publishing.
+- [x] License: AGPL-3.0-or-later (MuPDF requires AGPL compatibility).
 
 ## From user testing (2026-10-20)
 
@@ -95,9 +95,19 @@ Low:
       on the trackpad feels fine; check with a real mouse wheel.
 - [ ] Cosmetic: one clippy warning (`Rgba::rgba`); `folio FILE --version` ignores flags after a file.
 
+## MuPDF follow-ups
+
+- [ ] Upstream the two `vendor/mupdf` fixes to mupdf-rs, then drop the vendored copy.
+- [ ] Share one document across render threads (MuPDF display lists + cloned contexts) instead of opening it
+      per thread; cuts memory on large books.
+- [ ] Use MuPDF's block structure for column-aware selection and smart references in two-column papers.
+- [ ] EPUB/CBZ/XPS: enable the crate features (EPUB needs reflow `layout()` and a font size setting).
+- [ ] Write highlights into the PDF as real annotations (`pdf` module).
+
 ## Missing basics
 
-- [ ] **Password-protected PDFs:** no password prompt; encrypted files fail to open.
+- [ ] **Password-protected PDFs:** they now fail with a clear "password-protected" error; add a prompt
+      (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
 - [ ] **Drag and drop** a PDF onto the window.
 - [ ] **Remember window size and position** (always opens at 1100×900).
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).
@@ -134,3 +144,5 @@ Low:
 - [ ] **UI appearance config:** translucent and blurred panels/background (macOS vibrancy, KDE/Hyprland blur
       via a transparent window), panel opacity, shadows and animation settings, set in a `[ui]` section of
       `config.toml` and from Lua.
+- [ ] **Project website** (last): what folio is, screenshots/short clips of smart references, peek and Lua
+      automation, install instructions per platform, links to the docs and GitHub releases.

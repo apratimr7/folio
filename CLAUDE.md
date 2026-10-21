@@ -24,9 +24,8 @@ Hyprland/Wayland). **Work continues on macOS.**
 
 1. Build it: `./scripts/build-macos.sh`. Or skip building and use the CI artifact:
    `gh run download -n folio-macos-macos-15` (latest run), unzip, then right-click → Open (not notarized).
-   To build yourself, run `./scripts/build-macos.sh` (needs Xcode CLT, Homebrew, rustup; installs `poppler` and `pkg-config` via
-   brew). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`. If pkg-config can't find poppler:
-   `export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$PKG_CONFIG_PATH"`.
+   To build yourself, run `./scripts/build-macos.sh` (needs Xcode CLT and rustup with Rust ≥ 1.95; MuPDF is built from
+   source and linked statically). Dev loop: `cargo build && ./target/debug/folio ~/some-paper.pdf`.
 2. The macOS build **compiles and passes tests in CI but has never been run on a real Mac**. Verify first, and fix
    what breaks:
    - Retina sharpness: tiles are rendered at `zoom * pixels_per_point`, and the page origin is snapped to physical pixels.
@@ -79,9 +78,9 @@ while the user is typing. Use the in-app `screenshot` command.
 
 - **Everything is a named command** (`commands.rs` table + `App::run_builtin` in `app.rs`). Keys, the palette, Lua,
   `--remote` and future AI tools all call commands. A new feature means adding a command, then binding it.
-- `doc/`: `Backend` trait plus the poppler implementation. Coordinates are PDF points with a top-left origin.
-  The safe `poppler-rs` covers rendering; text layout, links and outline use raw FFI (`poppler::ffi`).
-  `insert_gap_spaces` repairs missing spaces and newlines in poppler's text. Backends are **not `Send`**, so every
+- `doc/`: `Backend` trait plus the MuPDF implementation (`doc/mupdf.rs`, the `mupdf` crate; a patched copy lives in
+  `vendor/mupdf`, see `FOLIO-PATCHES.md` there). Coordinates are points with a top-left origin.
+  `join_visual_lines` merges MuPDF's line pieces that share a baseline. Backends are **not `Send`**, so every
   thread opens its own.
 - `render.rs`: worker pool. The UI publishes the wanted `TileKey` list every frame and workers take the first one not
   in flight. 1024² tiles, generations for reloads, `recolor` for dark/tinted modes.
@@ -99,11 +98,13 @@ while the user is typing. Use the in-app `screenshot` command.
 - **egui/eframe 0.37** (new API). `App::ui(&mut self, ui, frame)`, not `update`. Panels are `egui::Panel::bottom/left/right(..).show(ui, ..)`
   and `CentralPanel::no_frame()`. `Id::new` is deprecated, so use `Id::unique`. `TextEdit::frame` takes a `Frame`.
   Read the crate source under `~/.cargo/registry/src` when unsure; don't guess from older egui docs.
-- Edition 2024: `gen` is a reserved word. Let-chains are used (Rust ≥ 1.88).
+- Edition 2024: `gen` is a reserved word. Let-chains are used. Minimum Rust is 1.95 (egui 0.37).
 - `eframe` uses the `glow` backend (default features off) for faster builds.
 - Keys that open a text field in the same frame would also type into it. `handle_keys` strips key events after
   dispatch to prevent that. Keep it that way.
-- Poppler link areas use a bottom-left origin and get flipped in `links()`. Text layout is already top-left.
+- MuPDF page space is already top-left; `MupdfDoc` subtracts each page's bounds origin (crop boxes) so pages
+  start at (0, 0). MuPDF splits one visual line at wide gaps; `join_visual_lines` puts it back together.
+- The `mupdf` crate is AGPL and so is folio. Fixes to the crate go into `vendor/mupdf` and `FOLIO-PATCHES.md`.
 
 ## Conventions
 

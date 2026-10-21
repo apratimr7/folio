@@ -1,19 +1,20 @@
 # Building
 
-folio is a single Rust binary that links poppler-glib (PDF rendering) and cairo. Lua 5.4 is compiled in, so it
-doesn't need to be installed.
+folio is a single, self-contained Rust binary. MuPDF (PDF rendering) and Lua 5.4 are compiled in from source,
+so nothing needs to be installed at runtime. Building MuPDF needs a C compiler, `make` and libclang (for the
+generated bindings). The first build takes a few minutes; later builds reuse it.
 
-You need Rust ≥ 1.88: `curl https://sh.rustup.rs -sSf | sh`.
+You need Rust ≥ 1.95: `curl https://sh.rustup.rs -sSf | sh`.
 
 ## Linux
 
-Install the poppler-glib development files:
+Install a C toolchain, libclang and the windowing headers:
 
 | distro | packages |
 |---|---|
-| Arch | `pacman -S poppler-glib cairo pkgconf` |
-| Debian/Ubuntu | `apt install libpoppler-glib-dev libcairo2-dev libxkbcommon-dev libgl1-mesa-dev pkg-config` |
-| Fedora | `dnf install poppler-glib-devel cairo-devel libxkbcommon-devel mesa-libGL-devel` |
+| Arch | `pacman -S base-devel clang libxkbcommon` |
+| Debian/Ubuntu | `apt install build-essential clang libclang-dev libxkbcommon-dev libgl1-mesa-dev` |
+| Fedora | `dnf install gcc make clang-devel libxkbcommon-devel mesa-libGL-devel` |
 
 ```sh
 cargo build --release
@@ -24,18 +25,16 @@ It runs natively on Wayland and X11.
 
 ## macOS
 
-On the Mac (Apple Silicon or Intel), with the Xcode command-line tools (`xcode-select --install`) and Homebrew:
+On the Mac (Apple Silicon or Intel), with the Xcode command-line tools (`xcode-select --install`):
 
 ```sh
 ./scripts/build-macos.sh
 open target/release/folio.app --args ~/papers/paper.pdf
 ```
 
-The script installs `poppler` and `pkg-config` with Homebrew if needed, builds a release binary, wraps it in
-`target/release/folio.app` (ad-hoc signed), and zips it.
+The script builds a release binary, wraps it in `target/release/folio.app` (ad-hoc signed), and zips it. The app
+only depends on macOS itself, so the zip runs on any Mac of the same architecture.
 
-- `BUNDLE=1 ./scripts/build-macos.sh` also copies the Homebrew dylibs into the app (via `dylibbundler`), so the
-  `.app` runs on Macs without Homebrew's poppler.
 - For the command line: `ln -sf "$PWD/target/release/folio.app/Contents/MacOS/folio" /usr/local/bin/folio`.
 - Config and data use `~/.config/folio` and `~/.local/share/folio`, the same as on Linux.
 - On macOS **Cmd works like Ctrl** in key bindings (`Cmd-d` = `<C-d>`, `Cmd-q` quits).

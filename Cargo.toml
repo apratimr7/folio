@@ -2,19 +2,19 @@
 name = "folio"
 version = "0.1.0"
 edition = "2024"
-rust-version = "1.88"
+rust-version = "1.95"
 description = "A keyboard-first PDF reader for technical documents"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/apratimr7/folio"
 readme = "README.md"
 
 [dependencies]
 anyhow = "1.0.104"
-cairo-rs = { version = "0.22.9", features = ["png"] }
 crossbeam-channel = "0.5.17"
 eframe = { version = "0.37.0", default-features = false, features = ["clipboard", "default_fonts", "glow", "wayland", "x11", "system_fonts"] }
-glib = "0.22.10"
 mlua = { version = "0.12.2", features = ["lua54", "vendored"] }
+mupdf = { version = "0.8.0", default-features = false, features = ["base14-fonts"] }
 nucleo-matcher = "0.3.1"
-poppler-rs = "0.26.0"
 regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
@@ -29,3 +29,7 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 codegen-units = 4
+
+[patch.crates-io]
+# Local fixes: null outline titles crash, unresolvable links panic. See vendor/mupdf/FOLIO-PATCHES.md.
+mupdf = { path = "vendor/mupdf" }

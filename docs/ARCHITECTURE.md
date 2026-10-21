@@ -18,7 +18,7 @@
    Backend; renders TileKeys           resolves smart references
              ▼                               ▼
                     Backend trait (doc/mod.rs)
-                    └─ PopplerDoc (doc/poppler.rs, poppler-glib + raw FFI)
+                    └─ MupdfDoc (doc/mupdf.rs, MuPDF via mupdf-rs)
 ```
 
 ## Modules
@@ -26,7 +26,7 @@
 | file | responsibility |
 |---|---|
 | `doc/mod.rs` | `Backend` trait and document types: `PageText` (one box per char), `Link`, `OutlineItem`, `DocPos`. All coordinates are PDF points with a top-left origin. |
-| `doc/poppler.rs` | poppler implementation. The safe bindings cover rendering; text layout, link mappings and outline actions use raw FFI (`poppler-sys`). |
+| `doc/mupdf.rs` | MuPDF implementation (the `mupdf` crate, patched copy in `vendor/mupdf`). Structured text gives per-char boxes; pieces of one visual line are joined. |
 | `render.rs` | render worker pool and page recoloring (dark / tinted modes) |
 | `text.rs` | text worker: full-document search with normalization, reference lookup |
 | `refs.rs` | smart reference detection (regexes over page text) and definition heuristics |
@@ -48,7 +48,8 @@
 **Everything is a command.** Key bindings, the palette, Lua, remote control and (later) AI agents call the same
 named commands with string arguments. A new feature only has to be added once to be reachable from all of them.
 
-**Backends are not `Send`.** poppler/GObject objects stay on the thread that created them, so each worker opens its
+**Backends are not `Send`.** MuPDF uses one context per thread (cloned from a shared base context with a common
+resource store), and its documents stay on the thread that opened them, so each worker opens its
 own document. The UI thread keeps one too, for cheap synchronous queries (page text, links).
 
 **Tiles, not pages.** Pages are rendered in 1024² device-pixel tiles keyed by
@@ -84,10 +85,8 @@ The reference itself is excluded, so a figure caption doesn't resolve to itself.
 
 ## Rendering pipeline
 
-`PopplerDoc::render(page, scale, x, y, w, h)` paints into a cairo `Rgb24` surface with a white background,
-translated and clipped to the tile, then converts it to RGBA. `render::recolor` applies the page color mode.
-The UI uploads results as egui textures (linear filtering). Page origins are snapped to the physical pixel grid,
-so tiles at the native scale map 1:1 to screen pixels.
+`MupdfDoc::render(page, scale, x, y, w, h)` runs the page through a MuPDF draw device into an RGB pixmap covering
+just that tile, on a white background, then expands it to RGBA. `render::recolor` applies the page color mode.
 
 ## Testing
 
