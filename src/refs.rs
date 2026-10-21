@@ -135,9 +135,10 @@ pub fn detect(text: &PageText) -> Vec<Reference> {
     }
     for c in p.bare_eq.captures_iter(&s) {
         let m = c.get(0).unwrap();
-        // Skip equation numbers themselves (they sit at the end of a line).
+        // Skip equation numbers themselves: they sit at the end of a line, or at its start when left-numbered.
         let after = text.chars.get(b2c[m.end()]).copied();
-        if after == Some('\n') || after.is_none() {
+        let before = b2c[m.start()].checked_sub(1).map(|i| text.chars[i]);
+        if after == Some('\n') || after.is_none() || before.is_none_or(|c| c == '\n') {
             continue;
         }
         push(RefKind::Equation, c[1].to_string(), m.start(), m.end());
@@ -211,6 +212,11 @@ pub fn find_definitions(text: &PageText, kind: RefKind, label: &str) -> Vec<(usi
                 if t.ends_with(&tag) {
                     let end = ls + t.chars().count();
                     out.push((end - tag.chars().count(), end, true));
+                } else if trimmed.starts_with(&tag) && trimmed.len() > tag.len() {
+                    // Left-numbered equations (`leqno`, Rudin): "(3.21)  lim …". Weak, since a sentence can
+                    // also start with a reference.
+                    let start = ls + lead_chars;
+                    out.push((start, start + tag.chars().count(), false));
                 }
             }
             RefKind::Theorem => {
@@ -288,6 +294,24 @@ mod tests {
         let defs = find_definitions(&t, RefKind::Theorem, "Theorem 2.36");
         assert_eq!(defs.len(), 1);
         assert!(defs[0].2);
+    }
+
+    #[test]
+    fn equation_number_right_is_strong_and_left_is_weak() {
+        let t = page(&["(3.21) lim sn = s", "since x is arbitrary, (3.21) follows.", "a + b = c (3.22)"]);
+        let left = find_definitions(&t, RefKind::Equation, "3.21");
+        assert_eq!(left.len(), 1, "only the left-numbered line, not the sentence mentioning it");
+        assert!(!left[0].2);
+        let right = find_definitions(&t, RefKind::Equation, "3.22");
+        assert_eq!(right.len(), 1);
+        assert!(right[0].2);
+    }
+
+    #[test]
+    fn equation_numbers_are_not_references() {
+        let t = page(&["(3.21) lim sn = s", "a + b = c (3.22)", "by (3.21) and (3.22) we get"]);
+        let labels: Vec<_> = detect(&t).into_iter().map(|r| (r.label, t.span_text(r.start, r.end))).collect();
+        assert_eq!(labels.len(), 2, "only the two references in the sentence: {labels:?}");
     }
 
     #[test]
