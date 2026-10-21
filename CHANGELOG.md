@@ -6,6 +6,7 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- Drop a PDF onto the window to open it.
 - Marks can be deleted: `Ctrl-d` in the marks list (`gm`), `delete_mark {letter}` and `delete_marks` (all of the
   document's lowercase marks).
 
@@ -34,6 +35,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
   (mode unchanged), `folio.set("theme.<key>", <not a color>)`, `goto_page 0`.
 
 ### Fixed
+- `kill` (SIGTERM), SIGHUP and Ctrl-C in the terminal close folio normally: the position is saved, the `quit` hook
+  runs and the remote-control socket is removed.
 - Dark pages: hyperref blue (and other saturated) links were nearly invisible (about 1.6:1 contrast). Strongly
   colored pixels are now lifted to a readable luminance with their hue kept (≥ 4.5:1, unit-tested).
 - The `mupdf` bindings crashed on damaged outlines (an item without a title) and panicked on links MuPDF can't

@@ -65,11 +65,11 @@ Medium:
       to a readable luminance in `render::recolor` (unit-tested).
 - [x] **5. `clear` doesn't close an open picker or prompt** (matters for remote/Lua/agents); hints then start under
       the picker. Close both, calling Lua prompt/pick callbacks with `nil`.
-- [ ] **6. Stale sockets on macOS** after a crash or kill: `folio.sock` points at a dead socket and `--remote`
+- [x] **6. Stale sockets on macOS** after a crash or kill: `folio.sock` points at a dead socket and `--remote`
       fails while another instance runs. Probe sockets by connecting (portable) instead of `/proc`; client falls
       back to the newest live `folio-*.sock`. Handle SIGTERM as a normal close (it skips saving today).
   - [x] Portable cleanup by connecting, client fallback, socket mode 0600.
-  - [ ] Still open: handle SIGTERM as a normal close (save, `quit` hook, remove the socket).
+  - [x] SIGTERM/SIGHUP/SIGINT close normally (save, `quit` hook, socket removed).
 - [ ] **7. Minimum Rust is 1.95, not 1.88** (egui 0.37). Fix `rust-version` in `Cargo.toml`, `BUILDING.md`,
       `CLAUDE.md`.
 
@@ -84,7 +84,7 @@ Low:
 - [x] 12. A figure caption (`Fig. 1.`) is hinted as a reference to itself and resolves to "not found".
 - [x] 13. Without an outline, `Section 3.5` resolves to its table-of-contents line, not the section.
 - [x] 14. Palette Tab-completion ranks `zoom_in` above the exact command `zoom` for `zoo`.
-- [ ] 15. `sel_line_next` from a section number moves within the heading (poppler splits `2   Strings…` into two
+- [x] 15. (Fixed by MuPDF's joined visual lines.) `sel_line_next` from a section number moves within the heading (poppler splits `2   Strings…` into two
       lines). Group lines by baseline for motions.
 - [x] 16. Status bar shows empty `()` for pages with an empty label.
 - [x] 17. `USAGE.md` socket path is wrong on macOS (`$TMPDIR`); a socket path over 104 bytes silently disables
@@ -107,7 +107,7 @@ Low:
 
 - [ ] **Password-protected PDFs:** they now fail with a clear "password-protected" error; add a prompt
       (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
-- [ ] **Drag and drop** a PDF onto the window.
+- [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
 - [x] **Remember window size and position** (eframe persistence, `window.ron` in the data dir). Saving is
       verified; restoring couldn't be observed here because a tiling window manager (AeroSpace) places windows.
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).

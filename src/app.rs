@@ -206,6 +206,7 @@ impl App {
                 notify_into(&mut app.toasts, format!("Remote control disabled: {e:#}"), Level::Warn);
             }
         }
+        close_on_signals(&app.ctx);
         app.load_script();
         match path {
             Some(p) => app.open(&p),
@@ -2023,4 +2024,18 @@ impl Picker {
     pub fn query_cursor_end(&mut self) {
         self.move_cursor_end = true;
     }
+}
+
+/// `kill`, a logout or Ctrl-C in the terminal close the window the normal way, so state is saved and the `quit`
+/// hook runs. (Signal handlers can't touch the app; a thread waits for the signal and asks egui to close.)
+fn close_on_signals(ctx: &egui::Context) {
+    use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
+    let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGTERM, SIGINT, SIGHUP]) else { return };
+    let ctx = ctx.clone();
+    let _ = std::thread::Builder::new().name("signals".into()).spawn(move || {
+        for _ in signals.forever() {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            ctx.request_repaint();
+        }
+    });
 }

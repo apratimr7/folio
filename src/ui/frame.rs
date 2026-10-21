@@ -44,6 +44,10 @@ impl eframe::App for App {
                 }
             }
         }
+        // A file dropped onto the window opens like `o` would.
+        if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf())) {
+            self.open(&path);
+        }
         self.handle_keys(&ctx);
         self.tick_keys();
 
