@@ -109,6 +109,34 @@ Low:
 
 ## Missing basics
 
+- [ ] **Native file dialog for opening documents** (user request, 2026-10-21). Today a file outside the current
+      folder or the recent list needs its path typed or pasted into `o`, which is too much hassle. Add an
+      `open_dialog` command that shows the system's own file chooser, filtered to PDFs and starting in the current
+      document's folder: GTK/KDE through the XDG desktop portal on Linux, `NSOpenPanel` on macOS, the common file
+      dialog on Windows. The `rfd` crate covers all three. Run it asynchronously so rendering doesn't freeze while
+      it's open, and add the chosen file to recents. Decide on a key (and whether `o` should open the native dialog,
+      via a `file_dialog = "native" | "builtin"` setting); keep the keyboard picker either way.
+- [ ] **Opening and managing files** (review, 2026-10-21; do the first three together with the native dialog):
+  - [ ] Open from the file manager: macOS Finder (`odoc`, see Known issues) and a Linux `.desktop` file so folio
+        appears under "Open with" (see Packaging in Next up).
+  - [ ] Single instance: `folio other.pdf` while folio is running hands the file to the open window (over the
+        remote socket) instead of starting a second one; a flag to force a new window.
+  - [ ] Open by URL or arXiv ID: `open_url`-style command that downloads a pasted `arxiv.org`/PDF link or an ID
+        like `1409.3575`, saves it to a configurable folder and opens it.
+  - [ ] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
+        has no title; take the title from the first page's largest text when the metadata is empty.
+  - [ ] Recent list: `Ctrl-d` removes an entry, pin favorites to the top, and say how many missing files were
+        hidden instead of dropping them silently.
+  - [ ] Library search: a fuzzy picker over every PDF in configured folders (e.g. `library = ["~/Papers"]`),
+        indexed in the background, so any paper opens from a few letters of its name.
+  - [ ] Folder shortcuts in the keyboard file picker (home, Downloads, configured library folders).
+  - [ ] Switch back to the previous document (`alternate_file`, `<C-^>` like vim) until tabs exist (see "New window
+        and new tab" in Next up).
+  - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
+        "open the new document off the UI thread").
+  - [ ] Save dialogs: export highlights to a Markdown file (today only clipboard and panel) and let `screenshot`
+        ask where to save instead of requiring a path.
+  - [ ] `reveal_file` (show the document in the file manager) and `copy_path` commands.
 - [ ] **Password-protected PDFs:** they now fail with a clear "password-protected" error; add a prompt
       (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
 - [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
@@ -258,12 +286,13 @@ Optional:
   - [ ] Icons (status bar, sidebar, palette), consistent spacing and type scale, subtle shadows and short
         animations for panels and peek.
   - [ ] Thumbnails sidebar; a slim scrollbar shown on hover (also in Missing basics).
-  - [ ] Native file dialog as an option next to the keyboard file picker.
+  - [ ] Native file dialog: moved to "Missing basics".
   - [ ] Screen reader support (egui AccessKit).
   - [ ] macOS: native menu bar with standard shortcuts, transparent title bar with content under the window
         buttons, SF Pro and the system accent, recent documents in the Dock menu, `Cmd-,` for settings.
   - [ ] Windows: Mica/Acrylic backdrop, dark title bar, Segoe UI Variable, system accent.
-  - [ ] Linux: dark mode and accent from the desktop portal, portal file chooser, header bar on Wayland.
+  - [ ] Linux: dark mode and accent from the desktop portal, header bar on Wayland (portal file chooser: see the
+        native file dialog in "Missing basics").
 - [ ] **UI appearance config:** translucent and blurred panels/background (macOS vibrancy, KDE/Hyprland blur
       via a transparent window), panel opacity, shadows and animation settings, set in a `[ui]` section of
       `config.toml` and from Lua.
