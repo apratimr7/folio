@@ -129,6 +129,12 @@ fn build_keymaps(cfg: &Config, toasts: &mut Vec<Toast>) -> HashMap<String, ModeM
     maps
 }
 
+fn warn_unknown_settings(toasts: &mut Vec<Toast>, unknown: &[String]) {
+    if !unknown.is_empty() {
+        notify_into(toasts, format!("config.toml: unknown setting {}", unknown.join(", ")), Level::Warn);
+    }
+}
+
 /// Labels like `a s d … aa as …`, all the same length so none is a prefix of another.
 fn hint_labels(n: usize, chars: &str) -> Vec<String> {
     let alphabet: Vec<char> = chars.chars().collect();
@@ -153,10 +159,16 @@ impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
         let ctx = cc.egui_ctx.clone();
         let mut toasts = Vec::new();
-        let cfg = Config::load().unwrap_or_else(|e| {
-            notify_into(&mut toasts, format!("config: {e:#}"), Level::Error);
-            Config::default()
-        });
+        let cfg = match Config::load() {
+            Ok((cfg, unknown)) => {
+                warn_unknown_settings(&mut toasts, &unknown);
+                cfg
+            }
+            Err(e) => {
+                notify_into(&mut toasts, format!("config: {e:#}"), Level::Error);
+                Config::default()
+            }
+        };
         let theme = Theme::preset(&cfg.general.theme).with_overrides(&cfg.theme);
         style::install_fonts(&ctx, &cfg.general);
         style::apply(&ctx, &theme, &cfg.general);
@@ -227,11 +239,44 @@ impl App {
             }
             Err(e) => notify_into(&mut self.toasts, format!("lua: {e}"), Level::Error),
         }
+        self.check_bindings();
+    }
+
+    /// Warn about key bindings to commands that don't exist (checked once Lua commands are defined).
+    fn check_bindings(&mut self) {
+        let mut bad = Vec::new();
+        let mut bad_modes = Vec::new();
+        for (mode, m) in &self.keymaps {
+            if mode != "normal" && mode != "visual" {
+                bad_modes.push(mode.clone());
+                continue;
+            }
+            for (seq, cmd) in m.iter() {
+                let name = commands::split(cmd).0;
+                let known = name.chars().all(|c| c.is_ascii_digit())
+                    || commands::builtin(name).is_some()
+                    || self.script.as_ref().is_some_and(|s| s.has_command(name));
+                if !known {
+                    bad.push(format!("{} → {name}", keymap::format_seq(seq)));
+                }
+            }
+        }
+        if !bad.is_empty() {
+            bad.sort();
+            self.warn(format!("Bindings to unknown commands: {}", bad.join(", ")));
+        }
+        if !bad_modes.is_empty() {
+            bad_modes.sort();
+            self.warn(format!("Bindings for unknown modes (have normal, visual): {}", bad_modes.join(", ")));
+        }
     }
 
     pub fn reload_config(&mut self) {
         match Config::load() {
-            Ok(cfg) => self.cfg = cfg,
+            Ok((cfg, unknown)) => {
+                self.cfg = cfg;
+                warn_unknown_settings(&mut self.toasts, &unknown);
+            }
             Err(e) => {
                 notify_into(&mut self.toasts, format!("config: {e:#}"), Level::Error);
                 return;

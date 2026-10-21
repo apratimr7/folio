@@ -117,13 +117,18 @@ pub fn data_dir() -> PathBuf {
 }
 
 impl Config {
-    pub fn load() -> Result<Self> {
+    /// The config, plus the paths of settings it doesn't know (`general.hint_char`), to warn about.
+    pub fn load() -> Result<(Self, Vec<String>)> {
         let path = config_dir().join("config.toml");
         if !path.exists() {
-            return Ok(Self::default());
+            return Ok((Self::default(), Vec::new()));
         }
         let text = std::fs::read_to_string(&path)?;
-        toml::from_str(&text).with_context(|| format!("in {}", path.display()))
+        let mut unknown = Vec::new();
+        let de = toml::Deserializer::parse(&text).with_context(|| format!("in {}", path.display()))?;
+        let cfg =
+            serde_ignored::deserialize(de, |p| unknown.push(p.to_string())).with_context(|| format!("in {}", path.display()))?;
+        Ok((cfg, unknown))
     }
 }
 

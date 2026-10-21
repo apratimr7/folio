@@ -84,13 +84,36 @@ fn canonical_name(name: &str) -> String {
         "gt" => ">",
         "bar" => "|",
         _ => {
-            if lower.starts_with('f') && lower[1..].parse::<u8>().is_ok() {
+            if lower.starts_with('f') && lower[1..].parse::<u8>().is_ok_and(|n| (1..=35).contains(&n)) {
                 return lower.to_ascii_uppercase();
             }
             return name.to_string();
         }
     };
     n.to_string()
+}
+
+/// Canonical names of non-character keys (plus `F1`…`F35`).
+const NAMED_KEYS: &[&str] = &[
+    "Esc",
+    "Enter",
+    "Tab",
+    "Backspace",
+    "Delete",
+    "Space",
+    "Up",
+    "Down",
+    "Left",
+    "Right",
+    "PageUp",
+    "PageDown",
+    "Home",
+    "End",
+    "Insert",
+];
+
+fn is_fkey(key: &str) -> bool {
+    key.strip_prefix('F').and_then(|n| n.parse::<u8>().ok()).is_some_and(|n| (1..=35).contains(&n))
 }
 
 /// Parse `"gg"`, `"<C-d>"`, `"<Space>t"`, `"<S-Tab>"` …
@@ -100,9 +123,10 @@ pub fn parse_seq(s: &str) -> Result<Vec<Chord>, String> {
     let mut i = 0;
     while i < chars.len() {
         let c = chars[i];
-        if c == '<'
-            && let Some(len) = chars[i + 1..].iter().position(|&c| c == '>')
-        {
+        if c == '<' && i + 1 < chars.len() {
+            let Some(len) = chars[i + 1..].iter().position(|&c| c == '>') else {
+                return Err(format!("unclosed '<' in \"{s}\" (use <lt> for the < key)"));
+            };
             let inner: String = chars[i + 1..i + 1 + len].iter().collect();
             if !inner.is_empty() {
                 out.push(parse_bracketed(&inner)?);
@@ -140,6 +164,9 @@ fn parse_bracketed(inner: &str) -> Result<Chord, String> {
         }
     }
     let mut key = canonical_name(rest);
+    if key.chars().count() > 1 && !NAMED_KEYS.contains(&key.as_str()) && !is_fkey(&key) {
+        return Err(format!("unknown key <{inner}>"));
+    }
     if key.chars().count() == 1 {
         if ctrl || alt {
             // Ctrl/Alt chords are case-insensitive; shift is folded into the case.
@@ -445,6 +472,28 @@ mod tests {
         assert_eq!(parse_seq("<Space>t").unwrap()[1].key, "t");
         assert_eq!(parse_seq("<lt>").unwrap()[0].key, "<");
         assert_eq!(parse_seq("<S-j>").unwrap()[0].key, "J");
+        assert_eq!(parse_seq("<F12>").unwrap()[0].key, "F12");
+        assert_eq!(parse_seq("<C-->").unwrap()[0].key, "-");
+        assert_eq!(parse_seq("<").unwrap()[0].key, "<");
+        assert_eq!(parse_seq("<pagedown>").unwrap()[0].key, "PageDown");
+    }
+
+    #[test]
+    fn rejects_malformed_keys() {
+        assert!(parse_seq("<C-").is_err());
+        assert!(parse_seq("<Bad").is_err());
+        assert!(parse_seq("g<Esc").is_err());
+        assert!(parse_seq("<Foo>").is_err());
+        assert!(parse_seq("<C-Foo>").is_err());
+        assert!(parse_seq("<F99>").is_err());
+        assert!(parse_seq("").is_err());
+    }
+
+    #[test]
+    fn default_bindings_parse() {
+        for (k, _) in NORMAL_DEFAULTS.iter().chain(VISUAL_DEFAULTS) {
+            assert!(parse_seq(k).is_ok(), "{k}");
+        }
     }
 
     #[test]
