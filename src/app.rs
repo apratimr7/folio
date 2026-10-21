@@ -294,8 +294,29 @@ impl App {
     // ------------------------------------------------------------------
     // Scripting glue
 
+    /// What `folio.state().mode` reports: the status bar's mode pill, plus `picker`.
+    /// (The keymap only knows `normal` and `visual`, see [`Mode`].)
+    fn state_mode(&self) -> &'static str {
+        let d = self.doc.as_ref();
+        if d.is_some_and(|d| d.hints.is_some()) {
+            "hint"
+        } else if d.is_some_and(|d| d.peek.is_some()) {
+            "peek"
+        } else if self.prompt.is_some() {
+            "input"
+        } else if self.picker.is_some() {
+            "picker"
+        } else if self.mode == Mode::Visual {
+            "visual"
+        } else if d.is_some_and(|d| d.ruler.is_some()) {
+            "ruler"
+        } else {
+            "normal"
+        }
+    }
+
     pub fn snapshot(&mut self) -> Snapshot {
-        let mode = self.mode.name().to_string();
+        let mode = self.state_mode().to_string();
         let theme = self.theme.name.clone();
         let Some(d) = &mut self.doc else { return Snapshot { mode, theme, ..Default::default() } };
         Snapshot {

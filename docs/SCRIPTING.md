@@ -65,6 +65,9 @@ folio.on(event, function(arg) ... end)
 | `folio.outline()` | `{ { title, depth, page }, ... }` |
 | `folio.highlights()` | `{ { page, text, color, note }, ... }` |
 
+`state().mode` follows the status bar: `normal`, `visual`, `hint`, `peek`, `ruler`, `input` (a prompt is open) or
+`picker` (a picker is open). Key maps exist only for `normal` and `visual`.
+
 ### Output and input
 
 | function | |
