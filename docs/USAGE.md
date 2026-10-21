@@ -37,7 +37,9 @@ Big moves (go to page, TOC, links, references, marks, the first search jump) are
 `Ctrl-o` (or `Backspace`) goes back, `Ctrl-i` (or `Tab`) goes forward. Use this after following a reference.
 
 `m` then a letter sets a mark, and `'` or `` ` `` then the letter jumps to it. Lowercase marks belong to the document.
-**Uppercase marks are global**: `'A` reopens the document the mark is in. `''` jumps back. `gm` lists marks.
+**Uppercase marks are global**: `'A` reopens the document the mark is in. `''` jumps back. `gm` lists marks;
+`Ctrl-d` there deletes the selected one. `:delete_mark a` deletes one mark, `:delete_marks` all of this document's
+lowercase marks.
 
 ## Search
 
@@ -68,12 +70,15 @@ Typing a label in **uppercase** peeks instead of jumping, whichever key started 
 - figures `Fig. 3`, `Figure 2.1b`, and tables `Table 4`, found by their captions
 - equations `Eq. (2.4)`, `eqs. 3.1`, and bare `(2.8)`, found by the equation number at the end of a line
 - `Theorem`, `Lemma`, `Proposition`, `Corollary`, `Definition`, `Remark`, `Example`, `Conjecture`,
-  `Assumption`, `Algorithm`, `Claim` + number
+  `Assumption`, `Algorithm`, `Claim` + number, defined as `Theorem 2.36.` or number-first `2.36 Theorem.`
 - `Section 3.2`, `Sec. 4`, `§2`, `Appendix A`, `Chapter 5`, resolved through the outline first
 
 **Peek** opens a floating preview of the target with the target outlined. `j`/`k` scroll inside it, `J`/`K` change
 page, `+`/`-` zoom, `Enter` jumps there (and records it in the jump list), and `Esc` closes it.
 Right-clicking a link peeks it too.
+
+Web links (`http`, `https`) and `mailto:` open in the default handler. Other link targets in a PDF (`file:`, custom
+schemes, paths) aren't opened, since they could launch files or programs; folio shows the target and copies it.
 
 ## Selecting, copying and highlighting
 
@@ -153,5 +158,8 @@ folio --remote 'search Hawking radiation' 'center_line'
 folio --remote 'toggle_dark; zoom 140'
 ```
 
-This talks to the most recently started instance through `$XDG_RUNTIME_DIR/folio.sock`.
-Set `FOLIO_SOCKET` to target a specific one (`$XDG_RUNTIME_DIR/folio-<pid>.sock`).
+This talks to the most recently started instance through `folio.sock` in `$XDG_RUNTIME_DIR`, or in `$TMPDIR`
+when `XDG_RUNTIME_DIR` isn't set (the usual case on macOS). If that instance is gone, the newest running one is
+used. Set `FOLIO_SOCKET` to target a specific one, e.g. `FOLIO_SOCKET=$TMPDIR/folio-<pid>.sock`.
+Sockets are private to your user (mode 0600). A socket path can be at most 104 bytes on macOS (108 on Linux); if
+it's longer, remote control is disabled and folio shows a warning.

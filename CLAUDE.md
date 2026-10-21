@@ -33,7 +33,7 @@ Hyprland/Wayland). **Work continues on macOS.**
      plain `Ctrl` still works.
    - Font discovery (`ui/style.rs::find_font`): there's no fontconfig on macOS, so it falls back to `/System/Library/Fonts/SFNS.ttf`.
    - Smooth trackpad scrolling and pinch zoom (`canvas` in `ui/frame.rs`).
-   - The IPC socket is in `$TMPDIR` (no `XDG_RUNTIME_DIR` on macOS). Stale-socket cleanup is Linux-only by design.
+   - The IPC socket is in `$TMPDIR` (no `XDG_RUNTIME_DIR` on macOS). Stale sockets are found by connecting to them.
 3. Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
 4. CI (`.github/workflows/build.yml`) is green. Its actions still use Node 20 (deprecation warning); bump
    `actions/checkout` / `actions/upload-artifact` when convenient.

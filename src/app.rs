@@ -129,6 +129,12 @@ fn build_keymaps(cfg: &Config, toasts: &mut Vec<Toast>) -> HashMap<String, ModeM
     maps
 }
 
+fn warn_unknown_settings(toasts: &mut Vec<Toast>, unknown: &[String]) {
+    if !unknown.is_empty() {
+        notify_into(toasts, format!("config.toml: unknown setting {}", unknown.join(", ")), Level::Warn);
+    }
+}
+
 /// Labels like `a s d … aa as …`, all the same length so none is a prefix of another.
 fn hint_labels(n: usize, chars: &str) -> Vec<String> {
     let alphabet: Vec<char> = chars.chars().collect();
@@ -153,10 +159,16 @@ impl App {
     pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
         let ctx = cc.egui_ctx.clone();
         let mut toasts = Vec::new();
-        let cfg = Config::load().unwrap_or_else(|e| {
-            notify_into(&mut toasts, format!("config: {e:#}"), Level::Error);
-            Config::default()
-        });
+        let cfg = match Config::load() {
+            Ok((cfg, unknown)) => {
+                warn_unknown_settings(&mut toasts, &unknown);
+                cfg
+            }
+            Err(e) => {
+                notify_into(&mut toasts, format!("config: {e:#}"), Level::Error);
+                Config::default()
+            }
+        };
         let theme = Theme::preset(&cfg.general.theme).with_overrides(&cfg.theme);
         style::install_fonts(&ctx, &cfg.general);
         style::apply(&ctx, &theme, &cfg.general);
@@ -189,7 +201,10 @@ impl App {
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
             Ok(server) => app.ipc = Some(server),
-            Err(e) => eprintln!("folio: remote control disabled: {e:#}"),
+            Err(e) => {
+                eprintln!("folio: remote control disabled: {e:#}");
+                notify_into(&mut app.toasts, format!("Remote control disabled: {e:#}"), Level::Warn);
+            }
         }
         app.load_script();
         match path {
@@ -224,11 +239,44 @@ impl App {
             }
             Err(e) => notify_into(&mut self.toasts, format!("lua: {e}"), Level::Error),
         }
+        self.check_bindings();
+    }
+
+    /// Warn about key bindings to commands that don't exist (checked once Lua commands are defined).
+    fn check_bindings(&mut self) {
+        let mut bad = Vec::new();
+        let mut bad_modes = Vec::new();
+        for (mode, m) in &self.keymaps {
+            if mode != "normal" && mode != "visual" {
+                bad_modes.push(mode.clone());
+                continue;
+            }
+            for (seq, cmd) in m.iter() {
+                let name = commands::split(cmd).0;
+                let known = name.chars().all(|c| c.is_ascii_digit())
+                    || commands::builtin(name).is_some()
+                    || self.script.as_ref().is_some_and(|s| s.has_command(name));
+                if !known {
+                    bad.push(format!("{} → {name}", keymap::format_seq(seq)));
+                }
+            }
+        }
+        if !bad.is_empty() {
+            bad.sort();
+            self.warn(format!("Bindings to unknown commands: {}", bad.join(", ")));
+        }
+        if !bad_modes.is_empty() {
+            bad_modes.sort();
+            self.warn(format!("Bindings for unknown modes (have normal, visual): {}", bad_modes.join(", ")));
+        }
     }
 
     pub fn reload_config(&mut self) {
         match Config::load() {
-            Ok(cfg) => self.cfg = cfg,
+            Ok((cfg, unknown)) => {
+                self.cfg = cfg;
+                warn_unknown_settings(&mut self.toasts, &unknown);
+            }
             Err(e) => {
                 notify_into(&mut self.toasts, format!("config: {e:#}"), Level::Error);
                 return;
@@ -291,8 +339,29 @@ impl App {
     // ------------------------------------------------------------------
     // Scripting glue
 
+    /// What `folio.state().mode` reports: the status bar's mode pill, plus `picker`.
+    /// (The keymap only knows `normal` and `visual`, see [`Mode`].)
+    fn state_mode(&self) -> &'static str {
+        let d = self.doc.as_ref();
+        if d.is_some_and(|d| d.hints.is_some()) {
+            "hint"
+        } else if d.is_some_and(|d| d.peek.is_some()) {
+            "peek"
+        } else if self.prompt.is_some() {
+            "input"
+        } else if self.picker.is_some() {
+            "picker"
+        } else if self.mode == Mode::Visual {
+            "visual"
+        } else if d.is_some_and(|d| d.ruler.is_some()) {
+            "ruler"
+        } else {
+            "normal"
+        }
+    }
+
     pub fn snapshot(&mut self) -> Snapshot {
-        let mode = self.mode.name().to_string();
+        let mode = self.state_mode().to_string();
         let theme = self.theme.name.clone();
         let Some(d) = &mut self.doc else { return Snapshot { mode, theme, ..Default::default() } };
         Snapshot {
@@ -453,6 +522,12 @@ impl App {
                             self.warn(format!("unknown theme key '{name}'"));
                             return;
                         }
+                    }
+                    if name == "radius" && f.is_none() {
+                        return self.warn(format!("theme.radius: '{value}' is not a number"));
+                    }
+                    if name != "radius" && config::Rgba::parse(value).is_none() {
+                        return self.warn(format!("theme.{name}: '{value}' is not a color (#rrggbb or #rrggbbaa)"));
                     }
                     self.theme = self.theme.clone().with_overrides(&o);
                     self.apply_theme();
@@ -645,8 +720,32 @@ impl App {
                 }
                 return;
             }
+            "clear" => {
+                // Like Esc: Lua pickers and prompts get their `nil` callback.
+                if self.picker.is_some() {
+                    self.picker_event(PickerEvent::Close);
+                }
+                if self.prompt.is_some() {
+                    self.prompt_cancel();
+                }
+                if let Some(d) = &mut self.doc {
+                    d.search = None;
+                    d.text.cancel_search();
+                    d.selection = None;
+                    d.hints = None;
+                    d.peek = None;
+                    d.pending_ref = None;
+                }
+                self.mode = Mode::Normal;
+                return;
+            }
+            "delete_mark" if args.is_empty() => return self.ask(name, PromptKind::CommandArg(name.into()), String::new()),
+            "delete_mark" if args.starts_with(|c: char| c.is_ascii_uppercase()) => {
+                let c = args.chars().next().unwrap_or_default();
+                return self.delete_mark(c);
+            }
             "echo" => return self.notify(args.to_string()),
-            "open_url" => return open_external(args),
+            "open_url" => return self.open_link(args),
             "screenshot" => {
                 let path = if args.is_empty() { PathBuf::from("folio.png") } else { shellexpand(args) };
                 let cb = egui::ScreenshotCallback::new(move |img| {
@@ -807,15 +906,6 @@ impl App {
                     self.notify("Nothing selected");
                 }
             }
-            "clear" => {
-                d.search = None;
-                d.text.cancel_search();
-                d.selection = None;
-                d.hints = None;
-                d.peek = None;
-                d.pending_ref = None;
-                self.mode = Mode::Normal;
-            }
             "toc" => self.open_toc(),
             "toggle_sidebar" => self.show_sidebar = !self.show_sidebar,
             "set_mark" => {
@@ -853,6 +943,16 @@ impl App {
                 }
             }
             "marks" => self.open_marks(),
+            "delete_mark" => {
+                let c = args.chars().next().unwrap_or_default();
+                self.delete_mark(c);
+            }
+            "delete_marks" => {
+                let n = d.state.marks.len();
+                d.state.marks.clear();
+                d.save_state();
+                self.notify(format!("Deleted {n} mark{}", if n == 1 { "" } else { "s" }));
+            }
             "jump_back" => {
                 if d.hist_idx == d.history.len() {
                     d.push_history();
@@ -887,13 +987,12 @@ impl App {
                 let target = if name == "toggle_dark" { PageMode::Dark } else { PageMode::Custom };
                 d.page_mode = if d.page_mode == target { PageMode::Normal } else { target };
             }
-            "page_mode" => {
-                d.page_mode = match args {
-                    "dark" => PageMode::Dark,
-                    "custom" => PageMode::Custom,
-                    _ => PageMode::Normal,
-                };
-            }
+            "page_mode" => match args {
+                "normal" => d.page_mode = PageMode::Normal,
+                "dark" => d.page_mode = PageMode::Dark,
+                "custom" => d.page_mode = PageMode::Custom,
+                _ => self.warn(format!("unknown page mode '{args}' (have: normal, dark, custom)")),
+            },
             "add_bookmark" => {
                 if args.is_empty() {
                     let sec = d.current_section().map(|i| d.outline[i].title.clone()).unwrap_or_default();
@@ -944,6 +1043,10 @@ impl App {
                 if name == "annotate" && args.is_empty() {
                     return self.ask("note", PromptKind::Annotate, String::new());
                 }
+                if name == "highlight" && !args.is_empty() && !self.theme.highlights.iter().any(|(n, _)| n == args) {
+                    let have: Vec<&str> = self.theme.highlights.iter().map(|(n, _)| n.as_str()).collect();
+                    return self.warn(format!("unknown highlight color '{args}' (have: {})", have.join(", ")));
+                }
                 let color =
                     if name == "highlight" && !args.is_empty() { args.to_string() } else { self.theme.highlights[0].0.clone() };
                 let note = if name == "annotate" { args.to_string() } else { String::new() };
@@ -987,11 +1090,47 @@ impl App {
         }
     }
 
+    /// Open a web or mail link. Anything else (`file:`, custom schemes, paths) could launch files
+    /// or apps from a PDF, so it's only copied to the clipboard.
+    pub fn open_link(&mut self, target: &str) {
+        let target = target.trim();
+        if target.is_empty() {
+            return self.warn("No URL given");
+        }
+        if is_web_url(target) {
+            open_external(target);
+            self.notify(format!("Opening {target}"));
+        } else {
+            self.ctx.copy_text(target.to_string());
+            self.warn(format!("Not opening '{target}' (only http, https and mailto links open); copied it"));
+        }
+    }
+
+    /// Delete a mark: lowercase ones from the current document, uppercase ones globally.
+    fn delete_mark(&mut self, c: char) {
+        let removed = if c.is_ascii_uppercase() {
+            let r = self.global.marks.remove(&c).is_some();
+            self.global.save();
+            r
+        } else if let Some(d) = &mut self.doc {
+            let r = d.state.marks.remove(&c).is_some();
+            d.save_state();
+            r
+        } else {
+            false
+        };
+        if removed {
+            self.notify(format!("Mark '{c}' deleted"));
+        } else {
+            self.notify(format!("Mark '{c}' not set"));
+        }
+    }
+
     fn goto_page_str(&mut self, s: &str) {
         let Some(d) = &mut self.doc else { return };
         let s = s.trim();
         let page = match s.parse::<usize>() {
-            Ok(n) => Some(n.saturating_sub(1)),
+            Ok(n) => n.checked_sub(1),
             // Page labels, e.g. roman numerals in front matter.
             Err(_) => (0..d.view.page_count()).find(|&i| d.backend.page_label(i).as_deref() == Some(s)),
         };
@@ -1145,8 +1284,7 @@ impl App {
             }
             HintAction::Link(LinkTarget::Uri(uri)) => {
                 self.ctx.copy_text(uri.clone());
-                open_external(&uri);
-                self.notify(format!("Opening {uri}"));
+                self.open_link(&uri);
             }
             HintAction::Link(LinkTarget::Other(s)) => self.notify(format!("Unsupported link: {s}")),
             HintAction::Ref { kind, label, page, char_idx } => {
@@ -1320,7 +1458,7 @@ impl App {
         if items.is_empty() {
             return self.notify("No marks (m{letter} sets one)");
         }
-        self.picker = Some(Picker::new(PickerKind::Marks, "Marks", items));
+        self.picker = Some(Picker::new(PickerKind::Marks, "Marks  ·  Ctrl-D deletes", items));
     }
 
     pub fn open_recent_picker(&mut self) {
@@ -1393,6 +1531,16 @@ impl App {
             PickerEvent::Delete => {
                 let kind = p.kind;
                 let cur = p.current().map(|i| i.data.clone());
+                if let (PickerKind::Marks, Some(PickData::Mark(c))) = (kind, &cur) {
+                    let selected = p.selected;
+                    self.delete_mark(*c);
+                    self.picker = None;
+                    self.open_marks();
+                    if let Some(p) = &mut self.picker {
+                        p.selected = selected.min(p.filtered.len().saturating_sub(1));
+                    }
+                    return;
+                }
                 let Some(d) = &mut self.doc else { return };
                 match (kind, cur) {
                     (PickerKind::Highlights, Some(PickData::Highlight(i))) => {
@@ -1830,8 +1978,13 @@ fn save_png(path: &Path, img: &egui::ColorImage) -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Open a URL or file with the desktop's default handler.
-pub fn open_external(target: &str) {
+fn is_web_url(s: &str) -> bool {
+    let l = s.to_ascii_lowercase();
+    ["http://", "https://", "mailto:"].iter().any(|p| l.starts_with(p))
+}
+
+/// Open a URL with the desktop's default handler. Callers check the scheme ([`App::open_link`]).
+fn open_external(target: &str) {
     let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
     if let Err(e) = std::process::Command::new(opener).arg(target).spawn() {
         eprintln!("folio: {opener} failed: {e}");

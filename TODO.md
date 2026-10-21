@@ -25,9 +25,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 
 ## From user testing (2026-10-20)
 
-- [ ] **Marks can't be deleted.** Add `Ctrl-d` in the `gm` marks list (like highlights and bookmarks), a
-      `delete_mark {char}` command, and `delete_marks` to clear all of them. Today the only options are
-      overwriting a mark or editing the state JSON.
+- [x] **Marks can't be deleted.** Done: `Ctrl-d` in the `gm` marks list, `delete_mark {char}`, and
+      `delete_marks` (the document's lowercase marks).
 - [ ] **Visual mode can't start where you want.** `v` starts at the search match, then the ruler line, then the
       first word on screen (usually the top). Add hint-based placement: `v` labels lines/words on screen and the
       chosen label sets the start (like `f` for links). Keep the current fallbacks for when no hint is chosen
@@ -52,48 +51,48 @@ Details, reproduction and evidence: `docs/testing/2026-10-20-macos-test-report.m
 
 High:
 
-- [ ] **1. Cmd-Q, Dock → Quit and logout lose the reading position and skip the `quit` hook.** Position falls back
-      to the last 8 s autosave. Ctrl-Q, `:quit` and the close button are fine. Fix: implement eframe's
-      `App::on_exit` with `save_all()` + `emit_quit()`.
-- [ ] **2. Auto-reload can crash (SIGSEGV in poppler) on a file that's still being written.** Seen once, not
-      reproduced in ~200 rewrites. `Session::file_changed` only compares mtimes. Reload when size+mtime are
-      stable across two polls and the file ends with `%%EOF`; open the new document off the UI thread and swap it
-      in on success (this also replaces the warning toast on partial files).
+- [x] **1. Cmd-Q, Dock → Quit and logout lose the reading position and skip the `quit` hook.** Fixed with
+      `App::on_exit` (checked with an Apple Event quit: position saved, hook ran).
+- [x] **2. Auto-reload can crash (SIGSEGV in poppler) on a file that's still being written.** `file_changed` now
+      waits for size+mtime to be stable across two polls and `%%EOF` in the last 1 KB.
+  - [ ] Still open: open the new document off the UI thread and swap it in on success.
 
 Medium:
 
-- [ ] **3. Smart refs miss number-first theorem styles** (`2.36 Theorem.`, Rudin/Apostol style): 17/21 unresolved
-      in Rudin. Accept `<label> <Kind>` at the line start in `refs::find_definitions`.
-- [x] **4. Dark page mode makes hyperref blue links nearly invisible** (~1.6:1 contrast). Clamp a minimum lightness
-      for saturated colors in `render::recolor`.
-- [ ] **5. `clear` doesn't close an open picker or prompt** (matters for remote/Lua/agents); hints then start under
+- [x] **3. Smart refs miss number-first theorem styles** (`2.36 Theorem.`, Rudin/Apostol style). Fixed; Rudin
+      p61 resolves 7/7.
+- [x] **4. Dark page mode makes hyperref blue links nearly invisible** (~1.6:1 contrast). Fixed: saturated colors are lifted
+      to a readable luminance in `render::recolor` (unit-tested).
+- [x] **5. `clear` doesn't close an open picker or prompt** (matters for remote/Lua/agents); hints then start under
       the picker. Close both, calling Lua prompt/pick callbacks with `nil`.
 - [ ] **6. Stale sockets on macOS** after a crash or kill: `folio.sock` points at a dead socket and `--remote`
       fails while another instance runs. Probe sockets by connecting (portable) instead of `/proc`; client falls
       back to the newest live `folio-*.sock`. Handle SIGTERM as a normal close (it skips saving today).
+  - [x] Portable cleanup by connecting, client fallback, socket mode 0600.
+  - [ ] Still open: handle SIGTERM as a normal close (save, `quit` hook, remove the socket).
 - [ ] **7. Minimum Rust is 1.95, not 1.88** (egui 0.37). Fix `rust-version` in `Cargo.toml`, `BUILDING.md`,
       `CLAUDE.md`.
 
 Low:
 
-- [ ] 8. `folio.state().mode` is only `normal`/`visual`, never `hint`/`peek`/`ruler`/`input` like the status bar.
-- [ ] 9. `config.toml` mistakes are silent: unknown settings, bindings to unknown commands, malformed keys
+- [x] 8. `folio.state().mode` is only `normal`/`visual`, never `hint`/`peek`/`ruler`/`input` like the status bar.
+- [x] 9. `config.toml` mistakes are silent: unknown settings, bindings to unknown commands, malformed keys
       (`"<Bad"`, `"<Foo>"`).
-- [ ] 10. Bad values are accepted silently: `highlight nosuchcolor`, `page_mode drak` (→ normal),
+- [x] 10. Bad values are accepted silently: `highlight nosuchcolor`, `page_mode drak` (→ normal),
       `theme.accent = "notacolor"`, `goto_page 0` (→ page 1).
-- [ ] 11. `folio.page_text(-1)` / `(2.5)` raise errors instead of returning `nil`.
-- [ ] 12. A figure caption (`Fig. 1.`) is hinted as a reference to itself and resolves to "not found".
-- [ ] 13. Without an outline, `Section 3.5` resolves to its table-of-contents line, not the section.
-- [ ] 14. Palette Tab-completion ranks `zoom_in` above the exact command `zoom` for `zoo`.
+- [x] 11. `folio.page_text(-1)` / `(2.5)` raise errors instead of returning `nil`.
+- [x] 12. A figure caption (`Fig. 1.`) is hinted as a reference to itself and resolves to "not found".
+- [x] 13. Without an outline, `Section 3.5` resolves to its table-of-contents line, not the section.
+- [x] 14. Palette Tab-completion ranks `zoom_in` above the exact command `zoom` for `zoo`.
 - [ ] 15. `sel_line_next` from a section number moves within the heading (poppler splits `2   Strings…` into two
       lines). Group lines by baseline for motions.
-- [ ] 16. Status bar shows empty `()` for pages with an empty label.
-- [ ] 17. `USAGE.md` socket path is wrong on macOS (`$TMPDIR`); a socket path over 104 bytes silently disables
-      remote control (stderr only). Show a toast.
+- [x] 16. Status bar shows empty `()` for pages with an empty label.
+- [x] 17. `USAGE.md` socket path is wrong on macOS (`$TMPDIR`); a socket path over 104 bytes silently disables
+      remote control (stderr only). Doc fixed, bind failures show a toast.
 - [ ] 18. `--remote` exits 0 on unknown commands and errors (see `--remote` replies below).
 - [ ] Ctrl/Cmd + wheel zoom is very sensitive with synthetic wheel events (10 events: 139% → 1200%). Pinch zoom
       on the trackpad feels fine; check with a real mouse wheel.
-- [ ] Cosmetic: one clippy warning (`Rgba::rgba`); `folio FILE --version` ignores flags after a file.
+- [ ] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)
 
 ## MuPDF follow-ups
 

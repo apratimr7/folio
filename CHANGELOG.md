@@ -5,6 +5,10 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Added
+- Marks can be deleted: `Ctrl-d` in the marks list (`gm`), `delete_mark {letter}` and `delete_marks` (all of the
+  document's lowercase marks).
+
 ### Changed
 - The window size and position are remembered between sessions (`window.ron` in the data directory).
 - **PDF engine: MuPDF replaces poppler.** Rendering is about 40% faster and text extraction (search, smart
@@ -20,12 +24,34 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 - The first `page` hook fires after the saved position is restored, not for page 1.
 - `--remote` doesn't split `lua …` lines on `;`.
 - `folio.prompt` calls back with `nil` when canceled. `folio.pick` passes `(index, item)`, or `nil` when canceled.
+- PDF links only open `http`, `https` and `mailto` URLs. Other targets (`file:`, custom schemes, paths) aren't
+  opened; folio shows a warning and copies them. `open_url` applies the same rule.
+- The remote-control socket is private (mode 0600). If it can't be created (e.g. a path over 104 bytes on macOS),
+  a warning toast says so.
+- Config mistakes are reported: unknown `config.toml` settings, malformed keys (`"<C-"`, `"<Bad"`), unknown key
+  names (`<Foo>`), bindings to commands that don't exist (checked after `init.lua`), and unknown `[keys.<mode>]`.
+- Bad values warn instead of being accepted: `highlight <unknown color>` (no highlight is made), `page_mode <unknown>`
+  (mode unchanged), `folio.set("theme.<key>", <not a color>)`, `goto_page 0`.
 
 ### Fixed
 - Dark pages: hyperref blue (and other saturated) links were nearly invisible (about 1.6:1 contrast). Strongly
   colored pixels are now lifted to a readable luminance with their hue kept (≥ 4.5:1, unit-tested).
 - The `mupdf` bindings crashed on damaged outlines (an item without a title) and panicked on links MuPDF can't
   resolve. Patched in `vendor/mupdf` (see `FOLIO-PATCHES.md` there).
+- macOS: Cmd-Q, Dock → Quit and logout save the reading position and run the `quit` hook (`App::on_exit`).
+- Auto-reload waits until the file looks complete (size and mtime stable across two polls, `%%EOF` at the end), so
+  a PDF that's still being written isn't parsed (this crashed poppler once).
+- Smart references: number-first theorem styles (`2.36 Theorem.`, Rudin/Apostol) resolve. Captions and theorem
+  headers (`Fig. 1.`, `Theorem 2.3:` at a line start) are no longer hinted as references to themselves. Without an
+  outline, `Section 3.5` prefers the heading over its table-of-contents line.
+- `clear` also closes an open picker or prompt (Lua callbacks get `nil`, as with Esc), and works without a document.
+- Stale remote-control sockets are cleaned up on every platform (probed by connecting instead of `/proc`), and
+  `--remote` falls back to the newest live instance when `folio.sock` is dead.
+- `folio.state().mode` reports `hint`, `peek`, `ruler`, `input` and `picker` like the status bar, not only
+  `normal`/`visual`.
+- `folio.page_text(n)` returns `nil` for negative and non-integer `n` instead of raising an error.
+- Palette: an exact command name ranks first, then shorter prefix matches (`zoo` + Tab → `zoom`).
+- The status bar no longer shows `()` for an empty page label.
 - `J` / `next_page` moved only one page; later presses stayed put. It now steps every time, including during smooth
   scrolling, and with counts (`3J`).
 - A Lua command that called itself through `folio.exec` crashed folio (stack overflow). Runaway chains are now

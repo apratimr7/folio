@@ -344,12 +344,14 @@ fn install_api(
         let shared = shared.clone();
         folio.set(
             "page_text",
-            lua.create_function(move |_, page: Option<usize>| {
+            lua.create_function(move |_, page: mlua::Value| {
                 let s = shared.borrow();
+                // Anything but a whole number in 1..page_count gives nil.
                 let page = match page {
-                    Some(0) => return Ok(None),
-                    Some(p) => p - 1,
-                    None => s.snapshot.page,
+                    mlua::Value::Nil => s.snapshot.page,
+                    mlua::Value::Integer(p) if p >= 1 => (p - 1) as usize,
+                    mlua::Value::Number(p) if p >= 1.0 && p.fract() == 0.0 && p < 1e15 => p as usize - 1,
+                    _ => return Ok(None),
                 };
                 Ok(s.doc.as_ref().filter(|d| page < d.page_count()).map(|d| {
                     let t = d.page_text(page);

@@ -104,6 +104,12 @@ impl eframe::App for App {
             ctx.request_repaint_after(Duration::from_millis(900));
         }
     }
+
+    /// Every exit path, including Cmd-Q and Apple Event quits that never raise `close_requested`.
+    fn on_exit(&mut self, _gl: Option<&eframe::glow::Context>) {
+        self.save_all();
+        self.emit_quit();
+    }
 }
 
 /// Translate egui events into key chords.
@@ -684,10 +690,7 @@ impl App {
             if let Some(link) = link {
                 match link.target {
                     doc::LinkTarget::Page(pos) => d.jump(pos, 0.1, false),
-                    doc::LinkTarget::Uri(uri) => {
-                        crate::app::open_external(&uri);
-                        self.notify(format!("Opening {uri}"));
-                    }
+                    doc::LinkTarget::Uri(uri) => self.open_link(&uri),
                     doc::LinkTarget::Other(s) => self.notify(format!("Unsupported link: {s}")),
                 }
             }
@@ -761,7 +764,7 @@ impl App {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                 let page = d.view.current_page();
                 let n = d.view.page_count();
-                let label = d.backend.page_label(page).filter(|l| *l != (page + 1).to_string());
+                let label = d.backend.page_label(page).filter(|l| !l.trim().is_empty() && *l != (page + 1).to_string());
                 let pct = if n > 1 { page * 100 / (n - 1) } else { 100 };
                 ui.label(RichText::new(format!("{pct}%")).color(c(t.text_dim)).monospace());
                 let page_text = match label {

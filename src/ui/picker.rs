@@ -160,6 +160,17 @@ impl Picker {
             if !self.keep_order {
                 scored.sort_by(|a, b| b.1.cmp(&a.1).then(a.0.cmp(&b.0)));
             }
+            if self.kind == PickerKind::Commands {
+                // The exact command first, then shorter prefix matches: `zoo` → zoom, zoom_in, zoom_out.
+                let q = q.trim();
+                let items = &self.items;
+                let rank = |i: usize| match &items[i].data {
+                    PickData::Command(name) if name == q => (0, 0),
+                    PickData::Command(name) if name.starts_with(q) => (1, name.len()),
+                    _ => (2, 0),
+                };
+                scored.sort_by_key(|&(i, _)| rank(i));
+            }
             self.filtered = scored.into_iter().map(|(i, _)| i).collect();
         }
         self.selected = self.selected.min(self.filtered.len().saturating_sub(1));
@@ -358,5 +369,27 @@ pub fn set_cursor_end(ctx: &egui::Context, id: egui::Id, text: &str) {
         let end = egui::text::CCursor::new(text.chars().count());
         state.cursor.set_char_range(Some(egui::text::CCursorRange::one(end)));
         state.store(ctx, id);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn palette(names: &[&str], query: &str) -> Vec<String> {
+        let items = names.iter().map(|n| PickItem::new(*n, PickData::Command(n.to_string()))).collect();
+        let mut p = Picker::new(PickerKind::Commands, "Command", items);
+        p.query = query.into();
+        p.refilter();
+        p.filtered.iter().map(|&i| p.items[i].label.clone()).collect()
+    }
+
+    #[test]
+    fn exact_and_short_prefix_first() {
+        let names = ["zoom_in", "zoom_out", "actual_size", "zoom", "toggle_zoom"];
+        let got = palette(&names, "zoo");
+        assert_eq!(&got[..3], ["zoom", "zoom_in", "zoom_out"]);
+        assert_eq!(palette(&names, "zoom_in")[0], "zoom_in");
+        assert_eq!(palette(&names, "zoom 150")[0], "zoom");
     }
 }
