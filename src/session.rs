@@ -158,7 +158,7 @@ pub fn render_colors(theme: &Theme) -> Colors {
 
 impl Session {
     pub fn open(path: &Path, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
-        let path = std::fs::canonicalize(path)?;
+        let path = doc::canonicalize(path)?;
         let backend: Rc<dyn Backend> = Rc::from(doc::open(&path)?);
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         let meta = backend.metadata();

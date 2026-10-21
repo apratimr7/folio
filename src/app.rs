@@ -227,7 +227,10 @@ impl App {
             Ok(server) => app.ipc = Some(server),
             Err(e) => {
                 eprintln!("folio: remote control disabled: {e:#}");
-                notify_into(&mut app.toasts, format!("Remote control disabled: {e:#}"), Level::Warn);
+                // On Windows it isn't implemented yet; don't warn at every start.
+                if cfg!(unix) {
+                    notify_into(&mut app.toasts, format!("Remote control disabled: {e:#}"), Level::Warn);
+                }
             }
         }
         close_on_signals(&app.ctx);
@@ -2045,15 +2048,18 @@ fn export_markdown(d: &Session) -> String {
 fn refresh_files(p: &mut Picker) {
     let q = shellexpand(&p.query);
     let q_str = p.query.clone();
-    let dir =
-        if q_str.ends_with('/') { q.clone() } else { q.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("/")) };
+    let dir = if q_str.ends_with(['/', '\\']) {
+        q.clone()
+    } else {
+        q.parent().map(Path::to_path_buf).unwrap_or_else(|| PathBuf::from("/"))
+    };
     let mut items = Vec::new();
     if let Ok(rd) = std::fs::read_dir(&dir) {
         let mut entries: Vec<_> = rd.flatten().collect();
         entries.sort_by_key(|e| (!e.path().is_dir(), e.file_name().to_string_lossy().to_lowercase()));
         for e in entries {
             let name = e.file_name().to_string_lossy().to_string();
-            if name.starts_with('.') && !q_str.rsplit('/').next().unwrap_or("").starts_with('.') {
+            if name.starts_with('.') && !q_str.rsplit(['/', '\\']).next().unwrap_or("").starts_with('.') {
                 continue;
             }
             let path = e.path();
@@ -2099,7 +2105,13 @@ fn is_web_url(s: &str) -> bool {
 
 /// Open a URL with the desktop's default handler. Callers check the scheme ([`App::open_link`]).
 fn open_external(target: &str) {
-    let opener = if cfg!(target_os = "macos") { "open" } else { "xdg-open" };
+    let opener = if cfg!(target_os = "macos") {
+        "open"
+    } else if cfg!(windows) {
+        "explorer"
+    } else {
+        "xdg-open"
+    };
     if let Err(e) = std::process::Command::new(opener).arg(target).spawn() {
         eprintln!("folio: {opener} failed: {e}");
     }
@@ -2107,20 +2119,16 @@ fn open_external(target: &str) {
 
 pub fn shellexpand(s: &str) -> PathBuf {
     let s = s.trim();
-    if let Some(rest) = s.strip_prefix("~")
-        && let Some(home) = std::env::var_os("HOME")
-    {
-        return PathBuf::from(format!("{}{rest}", home.to_string_lossy()));
+    if let Some(rest) = s.strip_prefix("~") {
+        return PathBuf::from(format!("{}{rest}", crate::config::home().to_string_lossy()));
     }
     PathBuf::from(s)
 }
 
 pub fn tilde(p: &Path) -> String {
     let s = p.to_string_lossy().to_string();
-    match std::env::var("HOME") {
-        Ok(home) if s.starts_with(&home) => format!("~{}", &s[home.len()..]),
-        _ => s,
-    }
+    let home = crate::config::home().to_string_lossy().to_string();
+    if home.len() > 1 && s.starts_with(&home) { format!("~{}", &s[home.len()..]) } else { s }
 }
 
 fn ago(t: u64) -> String {
@@ -2141,6 +2149,7 @@ impl Picker {
 
 /// `kill`, a logout or Ctrl-C in the terminal close the window the normal way, so state is saved and the `quit`
 /// hook runs. (Signal handlers can't touch the app; a thread waits for the signal and asks egui to close.)
+#[cfg(unix)]
 fn close_on_signals(ctx: &egui::Context) {
     use signal_hook::consts::{SIGHUP, SIGINT, SIGTERM};
     let Ok(mut signals) = signal_hook::iterator::Signals::new([SIGTERM, SIGINT, SIGHUP]) else { return };
@@ -2152,3 +2161,6 @@ fn close_on_signals(ctx: &egui::Context) {
         }
     });
 }
+
+#[cfg(not(unix))]
+fn close_on_signals(_ctx: &egui::Context) {}

@@ -1,3 +1,5 @@
+#![cfg_attr(windows, windows_subsystem = "windows")]
+
 mod app;
 mod commands;
 mod config;
@@ -34,6 +36,12 @@ usage:
 ";
 
 fn main() -> Result<()> {
+    // Built as a GUI app on Windows (no console window when started from Explorer); reattach to the terminal's
+    // console when there is one so `--help`, `--remote` and `--debug` still print.
+    #[cfg(windows)]
+    unsafe {
+        windows_sys::Win32::System::Console::AttachConsole(windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS);
+    }
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
         Some("-h" | "--help") => {

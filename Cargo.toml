@@ -19,7 +19,6 @@ regex = "1.13.1"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_ignored = "0.1.14"
 serde_json = "1.0.154"
-signal-hook = "0.3"
 toml = "1.1.8"
 
 [profile.dev]
@@ -31,6 +30,12 @@ opt-level = 3
 [profile.release]
 lto = "thin"
 codegen-units = 4
+
+[target.'cfg(unix)'.dependencies]
+signal-hook = "0.3"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_System_Console"] }
 
 [patch.crates-io]
 # Local fixes: null outline titles crash, unresolvable links panic. See vendor/mupdf/FOLIO-PATCHES.md.

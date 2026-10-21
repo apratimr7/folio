@@ -23,7 +23,7 @@ pub struct MupdfDoc {
 
 impl MupdfDoc {
     pub fn open(path: &Path) -> Result<Self> {
-        let abs = std::fs::canonicalize(path).with_context(|| format!("cannot open {}", path.display()))?;
+        let abs = super::canonicalize(path).with_context(|| format!("cannot open {}", path.display()))?;
         let doc = Document::open(abs.as_path()).map_err(|e| anyhow!("failed to load document: {e}"))?;
         if doc.needs_password().unwrap_or(false) {
             bail!("the document is password-protected");

@@ -102,18 +102,33 @@ pub struct Config {
     pub keys: BTreeMap<String, BTreeMap<String, String>>,
 }
 
-fn home() -> PathBuf {
-    std::env::var_os("HOME").map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
+/// The user's home directory (`HOME`, or `USERPROFILE` on Windows).
+pub fn home() -> PathBuf {
+    std::env::var_os("HOME").or_else(|| std::env::var_os("USERPROFILE")).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("."))
 }
 
-/// `$XDG_CONFIG_HOME/folio`, else `~/.config/folio` (on macOS too, like most keyboard-driven tools).
+/// A Windows known folder from the environment (`APPDATA`, `LOCALAPPDATA`), if set.
+fn windows_dir(var: &str) -> Option<PathBuf> {
+    if cfg!(windows) { std::env::var_os(var).map(PathBuf::from) } else { None }
+}
+
+/// `$XDG_CONFIG_HOME/folio`, else `~/.config/folio` (on macOS too, like most keyboard-driven tools), or
+/// `%APPDATA%\folio` on Windows.
 pub fn config_dir() -> PathBuf {
-    std::env::var_os("XDG_CONFIG_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".config")).join("folio")
+    std::env::var_os("XDG_CONFIG_HOME")
+        .map(PathBuf::from)
+        .or_else(|| windows_dir("APPDATA"))
+        .unwrap_or_else(|| home().join(".config"))
+        .join("folio")
 }
 
-/// `$XDG_DATA_HOME/folio`, else `~/.local/share/folio`.
+/// `$XDG_DATA_HOME/folio`, else `~/.local/share/folio`, or `%LOCALAPPDATA%\folio` on Windows.
 pub fn data_dir() -> PathBuf {
-    std::env::var_os("XDG_DATA_HOME").map(PathBuf::from).unwrap_or_else(|| home().join(".local/share")).join("folio")
+    std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| windows_dir("LOCALAPPDATA"))
+        .unwrap_or_else(|| home().join(".local/share"))
+        .join("folio")
 }
 
 impl Config {

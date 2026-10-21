@@ -1,0 +1,6 @@
+# Keep LF everywhere (tests compare docs with command output byte for byte, also on Windows checkouts).
+* text=auto eol=lf
+*.pdf binary
+*.png binary
+*.ico binary
+*.icns binary

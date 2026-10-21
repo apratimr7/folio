@@ -35,3 +35,17 @@ jobs:
         with:
           name: folio-macos-${{ matrix.os }}
           path: target/release/folio-*-macos-*.zip
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo test
+      - run: ./scripts/build-windows.ps1
+        shell: pwsh
+      - uses: actions/upload-artifact@v5
+        with:
+          name: folio-windows-x86_64
+          path: target/release/folio-*-windows-*.zip

@@ -1,8 +1,4 @@
-//! Remote control over a Unix socket.
-//!
-//! `folio --remote "goto_page 12"` sends command lines to the most recently
-//! started instance. Editors can use this for forward search, and external
-//! tools (or AI agents) can drive the reader the same way keys do.
+//! Remote control over a Unix socket (Linux, macOS).
 
 use std::io::ErrorKind;
 use std::io::{BufRead, BufReader, Write};
