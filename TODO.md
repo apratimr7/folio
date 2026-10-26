@@ -88,7 +88,7 @@ Low:
       (`lua` results) and exits 1 with the message on failure.
 - [ ] Ctrl/Cmd + wheel zoom is very sensitive with synthetic wheel events (10 events: 139% → 1200%). Pinch zoom
       on the trackpad feels fine; check with a real mouse wheel.
-- [ ] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)
+- [x] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)
 
 ## Found by the test suite
 

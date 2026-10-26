@@ -44,10 +44,6 @@ fn main() -> Result<()> {
     }
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
-        Some("-h" | "--help") => {
-            print!("{USAGE}");
-            Ok(())
-        }
         Some("--print-config") => {
             print!("{}", config::DEFAULT_CONFIG);
             Ok(())
@@ -61,14 +57,27 @@ fn main() -> Result<()> {
             list_commands();
             Ok(())
         }
-        Some("-V" | "--version") => {
-            println!("{} {}", config::APP_NAME, env!("CARGO_PKG_VERSION"));
-            Ok(())
-        }
         Some("--debug") => debug(&args[1..]),
         Some("--remote") => ipc::send(&args[1..]),
-        Some(flag) if flag.starts_with("--") => bail!("unknown option {flag}\n\n{USAGE}"),
-        path => run(path.map(PathBuf::from)),
+        _ => {
+            // Files, plus flags in any position (`folio paper.pdf --version`).
+            let mut files = Vec::new();
+            for a in &args {
+                match a.as_str() {
+                    "-h" | "--help" => {
+                        print!("{USAGE}");
+                        return Ok(());
+                    }
+                    "-V" | "--version" => {
+                        println!("{} {}", config::APP_NAME, env!("CARGO_PKG_VERSION"));
+                        return Ok(());
+                    }
+                    flag if flag.starts_with('-') && flag.len() > 1 => bail!("unknown option {flag}\n\n{USAGE}"),
+                    file => files.push(PathBuf::from(file)),
+                }
+            }
+            run(files.into_iter().next())
+        }
     }
 }
 

@@ -72,6 +72,8 @@ fn fixture(name: &str) -> String {
 fn version_prints_the_crate_version() {
     assert_eq!(ok(&["--version"]), format!("folio {}\n", env!("CARGO_PKG_VERSION")));
     assert_eq!(ok(&["-V"]), ok(&["--version"]));
+    // Flags after a file name count too (and don't start the GUI).
+    assert_eq!(ok(&["missing.pdf", "--version"]), ok(&["--version"]));
 }
 
 #[test]
