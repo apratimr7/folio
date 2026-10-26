@@ -44,14 +44,17 @@ impl MupdfDoc {
             // pdflatex writes the page tree last, so a file that's still being written opens with no pages.
             bail!("no pages (the file is incomplete or damaged)");
         }
-        let bounds = (0..n)
-            .map(|i| {
-                doc.load_page(i as i32)
-                    .and_then(|p| p.bounds())
-                    .map(|b| Rect::new(b.x0, b.y0, b.x1, b.y1))
-                    .unwrap_or(Rect::new(0.0, 0.0, 612.0, 792.0))
-            })
-            .collect();
+        let bounds = match &opts.page_bounds {
+            Some(b) if b.len() == n => b.to_vec(),
+            _ => (0..n)
+                .map(|i| {
+                    doc.load_page(i as i32)
+                        .and_then(|p| p.bounds())
+                        .map(|b| Rect::new(b.x0, b.y0, b.x1, b.y1))
+                        .unwrap_or(Rect::new(0.0, 0.0, 612.0, 792.0))
+                })
+                .collect(),
+        };
         let pdf = if doc.is_pdf() { PdfDocument::try_from(doc.clone()).ok() } else { None };
         Ok(Self { doc, pdf, bounds, rotation: opts.rotation % 360 })
     }
@@ -222,6 +225,10 @@ impl Backend for MupdfDoc {
             self.walk_outline(&items, 0, &mut out);
         }
         out
+    }
+
+    fn page_bounds(&self) -> Vec<Rect> {
+        self.bounds.clone()
     }
 
     fn metadata(&self) -> Metadata {

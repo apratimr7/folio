@@ -103,7 +103,7 @@ folio.on(event, function(arg) ... end)
 | | |
 |---|---|
 | `folio.spawn(argv, function(stdout, stderr, code) end, { stdin = "..." })` | run a process **without blocking**; the callback runs on the UI thread when it exits |
-| `folio.open(path [, password])` | open another document (a protected one without a password asks for it) |
+| `folio.open(path [, password])` | open another document; it's read in the background and the `open` event fires once it's shown (a protected one without a password asks for it) |
 | `folio.set(option, value)` | `statusbar`, `sidebar`, `smooth_scroll`, `scroll_step`, `zoom_step`, `page_gap`, `hint_chars`, `ruler_dim`, `hint_dim`, `theme`, `page_mode`, `theme.<color>` |
 | `folio.config_dir` | path of the config directory |
 | `folio.version` | folio version string |

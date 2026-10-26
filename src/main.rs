@@ -8,6 +8,7 @@ mod doc;
 mod highlights;
 mod ipc;
 mod keymap;
+mod loader;
 mod open_events;
 mod reference;
 mod refs;

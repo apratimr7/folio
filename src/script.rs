@@ -64,7 +64,11 @@ pub const LUA_API: &[(&str, &str, &str)] = &[
         "folio.spawn(argv, function(stdout, stderr, code) end, { stdin = \"...\" })",
         "run a process **without blocking**; the callback runs on the UI thread when it exits",
     ),
-    ("System", "folio.open(path [, password])", "open another document (a protected one without a password asks for it)"),
+    (
+        "System",
+        "folio.open(path [, password])",
+        "open another document; it's read in the background and the `open` event fires once it's shown (a protected one without a password asks for it)",
+    ),
     (
         "System",
         "folio.set(option, value)",

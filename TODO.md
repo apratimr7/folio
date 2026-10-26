@@ -56,7 +56,7 @@ High:
       `App::on_exit` (checked with an Apple Event quit: position saved, hook ran).
 - [x] **2. Auto-reload can crash (SIGSEGV in poppler) on a file that's still being written.** `file_changed` now
       waits for size+mtime to be stable across two polls and `%%EOF` in the last 1 KB.
-  - [ ] Still open: open the new document off the UI thread and swap it in on success.
+  - [x] Opening runs off the UI thread (see Missing basics); reloads still don't.
 
 Medium:
 
@@ -135,11 +135,9 @@ Low:
         indexed in the background, so any paper opens from a few letters of its name.
   - [ ] Folder shortcuts in the keyboard file picker (home, Downloads, configured library folders).
   - [x] Switch back to the previous document (`alternate_file`, `<C-6>`/`<C-^>` like vim).
-  - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
-        "open the new document off the UI thread").
-        Measured 2026-10-26: a 1,300-page, 58 MB textbook opens in 0.37 s (debug build, all page sizes read up
-        front), so this is a short pause, not a freeze. Worth doing together with sharing page sizes between the
-        UI and the render threads (each opens the document and reads every page's bounds again).
+  - [x] Load documents off the UI thread (`loader.rs`): a helper thread reads every page's size, the outline and
+        the title; the page sizes are shared with the render and text threads instead of each reading them again.
+        Reloads after a file change are still read on the UI thread (they're usually small LaTeX builds).
   - [x] Save dialogs: `gE`/`save_highlights` saves highlights as Markdown (`export_highlights PATH` writes
         directly), and `screenshot` without a path asks where to save.
   - [x] `reveal_file` (show the document in the file manager) and `copy_path` commands.

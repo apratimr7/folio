@@ -46,6 +46,9 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
   directly, and `screenshot` without a path asks where to save.
 
 ### Changed
+- Documents are read in the background, so opening a long book doesn't stall the window (a tab says
+  "Opening…" until it's ready), and the render threads reuse the page sizes instead of reading them again.
+  `folio.open` from Lua returns before the document is shown; the `open` event fires when it is.
 - `o` is now a key prefix (`oo` system dialog, `of` keyboard file picker, `or` recent, `ot` new tab); the
   keyboard file picker that `o` used to open is `of`. Key prefixes such as `g` wait for the next key.
 - CI: the Rust toolchain is pinned (1.95), tests run in release mode so MuPDF compiles once per job, docs-only

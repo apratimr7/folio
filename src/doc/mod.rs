@@ -214,6 +214,8 @@ pub trait Backend {
     fn links(&self, page: usize) -> Vec<Link>;
     fn outline(&self) -> Vec<OutlineItem>;
     fn metadata(&self) -> Metadata;
+    /// The pages' own bounds (unrotated), to pass on in [`OpenOptions::page_bounds`].
+    fn page_bounds(&self) -> Vec<Rect>;
 }
 
 /// `std::fs::canonicalize`, minus the `\\?\` prefix Windows adds (`\\?\C:\a.pdf` → `C:\a.pdf`), so paths stay
@@ -253,6 +255,9 @@ pub struct OpenOptions {
     /// Clockwise view rotation in degrees: 0, 90, 180 or 270.
     pub rotation: u16,
     pub password: Option<String>,
+    /// Every page's bounds (from [`Backend::page_bounds`]), when already known: reading them means loading every
+    /// page, which takes a while for long books, so it's done once and shared.
+    pub page_bounds: Option<std::sync::Arc<Vec<Rect>>>,
 }
 
 pub fn open(path: &Path) -> Result<Box<dyn Backend>> {

@@ -34,6 +34,7 @@ impl eframe::App for App {
         self.poll_workers(&ctx);
         self.poll_jobs();
         self.poll_dialogs();
+        self.poll_loader();
         self.settle_selection();
         let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
         for req in remote {
@@ -776,6 +777,17 @@ impl App {
     fn welcome(&mut self, ui: &mut egui::Ui, rect: Rect) {
         let painter = ui.painter_at(rect);
         let t = &self.theme;
+        if let Some(p) = self.active_pending.as_deref().or(self.loader.loading()) {
+            let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                format!("Opening {name}…"),
+                FontId::proportional(16.0),
+                c(t.text_dim),
+            );
+            return;
+        }
         let center = rect.center() - Vec2::new(0.0, 60.0);
         painter.text(center, Align2::CENTER_BOTTOM, crate::config::APP_NAME, FontId::proportional(56.0), c(t.text));
         painter.text(
@@ -860,6 +872,11 @@ impl App {
                     };
                     let col = if s.done && s.hits.is_empty() { t.search_current } else { t.text };
                     ui.label(RichText::new(msg).color(c(col)));
+                }
+                if let Some(p) = self.loader.loading() {
+                    let name: String =
+                        p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default().chars().take(40).collect();
+                    ui.label(RichText::new(format!("opening {name}…")).color(c(t.text_dim)));
                 }
                 if let Some((_, _, label)) = &d.pending_ref {
                     ui.label(RichText::new(format!("finding {label}…")).color(c(t.text_dim)));

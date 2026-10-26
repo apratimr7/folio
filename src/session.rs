@@ -221,24 +221,50 @@ pub fn title_from_text(text: &PageText, page_height: f32) -> Option<String> {
     (title.chars().filter(|c| c.is_alphabetic()).count() >= 4).then_some(title)
 }
 
+/// A document read on a background thread: everything slow about opening it (every page's size, the outline,
+/// the title, the saved state), as plain data that can cross threads.
+pub struct Prepared {
+    pub path: PathBuf,
+    pub opts: doc::OpenOptions,
+    pub title: String,
+    pub outline: Vec<OutlineItem>,
+    pub state: DocState,
+}
+
+impl Prepared {
+    pub fn load(path: &Path, password: Option<String>) -> Result<Self> {
+        let path = doc::canonicalize(path)?;
+        let state = DocState::load(&path);
+        let mut opts = doc::OpenOptions { rotation: state.rotation, password, page_bounds: None };
+        let backend = doc::open_with(&path, &opts)?;
+        opts.page_bounds = Some(std::sync::Arc::new(backend.page_bounds()));
+        let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let title = backend
+            .metadata()
+            .title
+            .filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word"))
+            .or_else(|| title_from_text(&backend.page_text(0), backend.page_size(0).1))
+            .unwrap_or(file_name);
+        Ok(Self { outline: backend.outline(), title, state, opts, path })
+    }
+}
+
 pub fn render_colors(theme: &Theme) -> Colors {
     Colors { fg: theme.page_fg, bg: theme.page_bg }
 }
 
 impl Session {
+    /// Open a document now, on this thread.
+    #[cfg_attr(not(test), allow(dead_code))]
     pub fn open(path: &Path, password: Option<String>, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
-        let path = doc::canonicalize(path)?;
-        let state = DocState::load(&path);
-        let opts = doc::OpenOptions { rotation: state.rotation, password };
+        Self::from_prepared(Prepared::load(path, password)?, cfg, theme, ctx)
+    }
+
+    /// Finish opening a document read by [`Prepared::load`]; quick, since the slow parts are done.
+    pub fn from_prepared(p: Prepared, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
+        let Prepared { path, opts, title, outline, state } = p;
         let backend: Rc<dyn Backend> = Rc::from(doc::open_with(&path, &opts)?);
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
-        let meta = backend.metadata();
-        let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let title = meta
-            .title
-            .filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word"))
-            .or_else(|| title_from_text(&backend.page_text(0), backend.page_size(0).1))
-            .unwrap_or(file_name);
         let wake = {
             let ctx = ctx.clone();
             move || ctx.request_repaint()
@@ -251,7 +277,7 @@ impl Session {
             view.zoom = z;
             view.set_zoom(z, 0.0);
         }
-        let outline = Rc::new(backend.outline());
+        let outline = Rc::new(outline);
         Ok(Self {
             title,
             backend,
@@ -307,7 +333,10 @@ impl Session {
 
     /// Reopen the file after it changed on disk (e.g. LaTeX rebuild).
     pub fn reload(&mut self) -> Result<()> {
+        // The pages may have changed size: read them again, then share them with the workers.
+        self.opts.page_bounds = None;
         let backend: Rc<dyn Backend> = Rc::from(doc::open_with(&self.path, &self.opts)?);
+        self.opts.page_bounds = Some(std::sync::Arc::new(backend.page_bounds()));
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         self.view.set_sizes(sizes);
         self.outline = Rc::new(backend.outline());

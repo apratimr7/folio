@@ -43,8 +43,8 @@ pub enum PromptKind {
     Lua(FnId),
     Bookmark,
     Annotate,
-    /// The password for a protected document; the text is masked.
-    Password(PathBuf),
+    /// The password for a protected document (the open request waiting for it); the text is masked.
+    Password(crate::loader::Request),
     /// The note of an existing highlight.
     HighlightNote(usize),
 }
@@ -107,6 +107,10 @@ pub struct App {
     pub active_tab: usize,
     /// Recently closed tabs, newest last.
     pub closed_tabs: Vec<PathBuf>,
+    /// Documents being opened in the background.
+    pub loader: crate::loader::Loader,
+    /// The file being opened into the active tab while `doc` is empty (a restored tab shown before it's read).
+    pub active_pending: Option<PathBuf>,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -249,6 +253,8 @@ impl App {
             tabs: Vec::new(),
             active_tab: 0,
             closed_tabs: Vec::new(),
+            loader: Default::default(),
+            active_pending: None,
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -281,7 +287,7 @@ impl App {
         for f in &files {
             self.open_in_new_tab(f);
         }
-        if self.doc.is_none() && self.prompt.is_none() {
+        if self.doc.is_none() && self.prompt.is_none() && self.loader.is_idle() {
             self.open_recent_picker();
         }
     }
@@ -378,37 +384,11 @@ impl App {
         self.open_with_password(path, None);
     }
 
-    /// Open a document; a protected one asks for its password first.
+    /// Open a document in the current tab (read in the background); a protected one asks for its password.
     pub fn open_with_password(&mut self, path: &Path, password: Option<String>) {
         // Already open in another tab: show that one.
-        if self.switch_if_open(path) {
-            return;
-        }
-        if let Some(d) = &mut self.doc {
-            d.save_state();
-        }
-        match Session::open(path, password, &self.cfg, &self.theme, &self.ctx) {
-            Ok(s) => {
-                self.global.touch_recent(&s.path, &s.title, s.state.pos.map(|p| p.page).unwrap_or(0));
-                self.global.save();
-                self.ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} — {}", s.title, config::APP_NAME)));
-                self.place_in_current_tab(s);
-                self.mode = Mode::Normal;
-                self.picker = None;
-                self.sync_script_doc();
-                let p = self.doc.as_ref().map(|d| d.path.to_string_lossy().to_string()).unwrap_or_default();
-                self.emit("open", p);
-            }
-            Err(e) => match e.downcast_ref::<crate::doc::OpenError>() {
-                Some(err) => {
-                    if *err == crate::doc::OpenError::WrongPassword {
-                        self.warn("Wrong password");
-                    }
-                    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-                    self.ask(&format!("password for {name}"), PromptKind::Password(path.to_path_buf()), String::new());
-                }
-                None => notify_into(&mut self.toasts, format!("{}: {e:#}", path.display()), Level::Error),
-            },
+        if !self.switch_if_open(path) {
+            self.request_open(path, password, crate::loader::Target::Current, None);
         }
     }
 
@@ -766,6 +746,7 @@ impl App {
                 self.run_line(cmd, None);
             }
         }
+        self.finish_loading_now();
         let out = self.remote_out.take().unwrap_or_default();
         let errors: Vec<&str> =
             self.toasts.iter().filter(|t| t.level != Level::Info && t.born >= start).map(|t| t.text.as_str()).collect();
@@ -1147,11 +1128,14 @@ impl App {
                 }
                 if c.is_ascii_uppercase() {
                     if let Some((path, pos)) = self.global.marks.get(&c).cloned() {
-                        if path != d.path {
-                            self.open(&path);
-                        }
-                        if let Some(d) = &mut self.doc {
+                        if path == d.path {
                             d.jump(pos, 0.0, false);
+                        } else if self.switch_if_open(&path) {
+                            if let Some(d) = &mut self.doc {
+                                d.jump(pos, 0.0, false);
+                            }
+                        } else {
+                            self.request_open(&path, None, crate::loader::Target::Current, Some(pos));
                         }
                     } else {
                         self.notify(format!("Mark '{c}' not set"));
@@ -2122,9 +2106,13 @@ impl App {
                 self.run_line(&format!("add_bookmark {}", if text.is_empty() { "Bookmark" } else { &text }), None)
             }
             PromptKind::HighlightNote(i) => self.edit_highlight(i, |h| Some(store::Highlight { note: text, ..h })),
-            PromptKind::Password(path) => {
-                if !text.is_empty() {
-                    self.open_with_password(&path, Some(p.text));
+            PromptKind::Password(req) => {
+                if text.is_empty() {
+                    if req.target == crate::loader::Target::Lazy {
+                        self.drop_lazy_tab(&req.path);
+                    }
+                } else {
+                    self.request_open(&req.path, Some(p.text), req.target, req.then);
                 }
             }
             PromptKind::Annotate => {
@@ -2140,6 +2128,12 @@ impl App {
             // Tell the script the user canceled.
             self.with_script(|s| s.call_fn(cb, ()));
             return;
+        }
+        // No password for a restored tab: close it rather than leave it waiting.
+        if let PromptKind::Password(req) = &p.kind
+            && req.target == crate::loader::Target::Lazy
+        {
+            return self.drop_lazy_tab(&req.path.clone());
         }
         if let PromptKind::Search { .. } = p.kind
             && let Some(d) = &mut self.doc

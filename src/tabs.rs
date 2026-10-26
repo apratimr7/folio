@@ -22,9 +22,10 @@ pub enum Tab {
 }
 
 impl Tab {
-    fn path<'a>(&'a self, active: Option<&'a Session>) -> Option<&'a Path> {
+    /// The tab's file. The active tab's is the open document's, or the one being opened into it.
+    fn path<'a>(&'a self, active: Option<&'a Session>, pending: Option<&'a Path>) -> Option<&'a Path> {
         match self {
-            Tab::Active => active.map(|d| d.path.as_path()),
+            Tab::Active => active.map(|d| d.path.as_path()).or(pending),
             Tab::Loaded(s) => Some(&s.path),
             Tab::Lazy(p) => Some(p),
         }
@@ -41,7 +42,10 @@ impl App {
 
     /// Paths of all tabs, in order.
     pub fn tab_paths(&self) -> Vec<PathBuf> {
-        self.tabs.iter().filter_map(|t| t.path(self.doc.as_ref()).map(Path::to_path_buf)).collect()
+        self.tabs
+            .iter()
+            .filter_map(|t| t.path(self.doc.as_ref(), self.active_pending.as_deref()).map(Path::to_path_buf))
+            .collect()
     }
 
     /// Titles of all tabs, in order (file names for tabs not loaded yet).
@@ -49,7 +53,11 @@ impl App {
         self.tabs
             .iter()
             .map(|t| match t {
-                Tab::Active => self.doc.as_ref().map(|d| d.title.clone()).unwrap_or_default(),
+                Tab::Active => match (&self.doc, &self.active_pending) {
+                    (Some(d), _) => d.title.clone(),
+                    (None, Some(p)) => format!("Opening {}…", p.file_name().map(|n| n.to_string_lossy()).unwrap_or_default()),
+                    (None, None) => String::new(),
+                },
                 Tab::Loaded(s) => s.title.clone(),
                 Tab::Lazy(p) => self
                     .global
@@ -62,9 +70,9 @@ impl App {
             .collect()
     }
 
-    fn tab_of(&self, path: &Path) -> Option<usize> {
+    pub(crate) fn tab_of(&self, path: &Path) -> Option<usize> {
         let path = crate::doc::canonicalize(path).unwrap_or_else(|_| path.to_path_buf());
-        self.tabs.iter().position(|t| t.path(self.doc.as_ref()) == Some(path.as_path()))
+        self.tabs.iter().position(|t| t.path(self.doc.as_ref(), self.active_pending.as_deref()) == Some(path.as_path()))
     }
 
     /// Put a newly opened session in the current tab (or the first one).
@@ -74,13 +82,24 @@ impl App {
             self.active_tab = 0;
         }
         self.tabs[self.active_tab] = Tab::Active;
+        self.active_pending = None;
         self.doc = Some(s);
+    }
+
+    /// Make room for a new active tab right after the current one.
+    pub(crate) fn insert_tab_after_active(&mut self) {
+        self.stash_active();
+        let i = (self.active_tab + 1).min(self.tabs.len());
+        self.tabs.insert(i, Tab::Active);
+        self.active_tab = i;
     }
 
     /// If the document is open in another tab, switch to that tab. Returns true if it did.
     pub(crate) fn switch_if_open(&mut self, path: &Path) -> bool {
         match self.tab_of(path) {
-            Some(i) if i != self.active_tab || self.doc.is_none() => {
+            // Already being opened into the active tab.
+            Some(i) if i == self.active_tab && self.doc.is_none() => true,
+            Some(i) if i != self.active_tab => {
                 self.switch_tab(i);
                 true
             }
@@ -91,24 +110,20 @@ impl App {
 
     /// Open a document in a new tab after the current one (or switch to it if it's open already).
     pub fn open_in_new_tab(&mut self, path: &Path) {
-        if self.doc.is_none() || self.switch_if_open(path) {
-            return self.open(path);
-        }
-        let before = self.active_tab;
-        self.stash_active();
-        self.tabs.insert(before + 1, Tab::Active);
-        self.active_tab = before + 1;
-        self.open(path);
-        let asking = self.prompt.as_ref().is_some_and(|p| matches!(p.kind, crate::app::PromptKind::Password(_)));
-        if self.doc.is_none() && !asking {
-            // It didn't open: back to where we were.
-            self.tabs.remove(before + 1);
-            self.activate(before);
+        if !self.switch_if_open(path) {
+            self.request_open(path, None, crate::loader::Target::NewTab, None);
         }
     }
 
     /// Move the active document into its tab slot, so another one can become active.
     fn stash_active(&mut self) {
+        // A tab still being opened goes back to waiting; its document lands there when it's read.
+        if self.doc.is_none()
+            && let Some(p) = self.active_pending.take()
+            && let Some(slot @ Tab::Active) = self.tabs.get_mut(self.active_tab)
+        {
+            *slot = Tab::Lazy(p);
+        }
         if let Some(mut d) = self.doc.take() {
             d.save_state();
             d.pool.request(Vec::new());
@@ -130,7 +145,7 @@ impl App {
 
     /// Make tab `j` the active one (nothing is active now). A restored tab is opened; if that fails, the tab is
     /// dropped and its neighbor is shown instead.
-    fn activate(&mut self, j: usize) {
+    pub(crate) fn activate(&mut self, j: usize) {
         if self.tabs.is_empty() {
             self.active_tab = 0;
             self.doc = None;
@@ -152,18 +167,15 @@ impl App {
                 self.after_switch();
             }
             Tab::Lazy(path) => {
-                self.open(&path);
-                let asking = self.prompt.as_ref().is_some_and(|p| matches!(p.kind, crate::app::PromptKind::Password(_)));
-                if self.doc.is_none() && !asking {
-                    self.tabs.remove(j);
-                    self.activate(j);
-                }
+                self.active_pending = Some(path.clone());
+                self.after_switch();
+                self.request_open(&path, None, crate::loader::Target::Lazy, None);
             }
             Tab::Active => self.after_switch(),
         }
     }
 
-    fn after_switch(&mut self) {
+    pub(crate) fn after_switch(&mut self) {
         self.mode = Mode::Normal;
         self.picker = None;
         self.disp.reset();
@@ -184,7 +196,7 @@ impl App {
         if i >= self.tabs.len() {
             return;
         }
-        if let Some(p) = self.tabs[i].path(self.doc.as_ref()).map(Path::to_path_buf) {
+        if let Some(p) = self.tabs[i].path(self.doc.as_ref(), self.active_pending.as_deref()).map(Path::to_path_buf) {
             self.closed_tabs.retain(|c| c != &p);
             self.closed_tabs.push(p);
             if self.closed_tabs.len() > CLOSED_KEPT {
@@ -205,6 +217,7 @@ impl App {
             let page = d.view.current_page();
             self.global.touch_recent(&d.path, &d.title, page);
         }
+        self.active_pending = None;
         self.tabs.remove(i);
         // The tab to the right takes its place, like in a browser.
         self.activate(i);
