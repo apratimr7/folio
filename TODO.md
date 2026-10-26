@@ -19,7 +19,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       help further, see MuPDF follow-ups).
 - [ ] Bare equation references like `(2.8)` are only detected with a dot (to avoid noise like `(1)`).
 - [x] Page rotation: the PDF's own `/Rotate` is honored by MuPDF; `rotate` (`>`/`<`) turns the view, per document.
-- [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
+- [x] Huge documents: page sizes are read once, in the background, and shared with the workers (a 1,300-page book
+      takes about 0.1 s); reading them lazily isn't needed for now.
 - [x] PDF link-border annotations (red hyperref boxes): MuPDF doesn't draw link borders, so nothing to hide
       (checked on `refs.pdf`, default hyperref).
 - [x] License: AGPL-3.0-or-later (MuPDF requires AGPL compatibility).
@@ -232,7 +233,7 @@ pages and short clips.
 
 - [x] **A documentation site with mdBook**, built from the existing `docs/*.md` (no rewrite) and published to GitHub
       Pages by a workflow on `main`: navigation, search, dark mode. It can grow into the project website later.
-- [ ] **Generated reference pages**, each checked by a test so a change in code without docs fails CI (as
+- [x] **Generated reference pages**, each checked by a test so a change in code without docs fails CI (as
       `docs/COMMANDS.md` already is):
   - [x] commands and default keys (`folio --list-commands`, exists);
   - [x] configuration reference generated from the config schema and its doc comments (a `--list-config` that
@@ -277,7 +278,7 @@ pages and short clips.
 - [ ] Config hot-reload on file change.
 - [ ] `folio --remote` replies (query state, return JSON) for richer editor/agent integration.
 - [x] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs (`docs/TESTING.md`).
-- [ ] Packaging: AUR `PKGBUILD`, Homebrew formula, `.desktop` file and icon.
+- [ ] Packaging: AUR `PKGBUILD`, Homebrew formula (the `.desktop` file and icon exist).
 
 ## Later
 
@@ -294,8 +295,7 @@ Optional:
   - [ ] Follow the system light/dark mode and accent color; respect reduced-motion and contrast settings.
   - [ ] Icons (status bar, sidebar, palette), consistent spacing and type scale, subtle shadows and short
         animations for panels and peek.
-  - [ ] Thumbnails sidebar; a slim scrollbar shown on hover (also in Missing basics).
-  - [ ] Native file dialog: moved to "Missing basics".
+  - [ ] Thumbnails sidebar (the scrollbar is in Missing basics).
   - [ ] Screen reader support (egui AccessKit).
   - [ ] macOS: native menu bar with standard shortcuts, transparent title bar with content under the window
         buttons, SF Pro and the system accent, recent documents in the Dock menu, `Cmd-,` for settings.
