@@ -199,7 +199,7 @@ fn debug(args: &[String]) -> Result<()> {
                         let line = tt
                             .lines()
                             .into_iter()
-                            .find(|&(s, e)| tt.span_rects(s, e).iter().any(|lr| (lr.y0 - rect.y0).abs() < 2.0))
+                            .find(|&(s, e)| tt.span_rects(s, e).iter().any(|lr| lr.y0 <= rect.center_y() && lr.y1 >= rect.center_y()))
                             .map(|(s, e)| tt.span_text(s, e))
                             .unwrap_or_default();
                         format!("p{} «{}»", p + 1, line.chars().take(70).collect::<String>())

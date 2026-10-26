@@ -94,7 +94,7 @@ Low:
 
 - [x] References whose keyword is hyphenated across a line break weren't detected (`refs::detect`).
 - [x] A truncated PDF opened with zero pages and no error (the page tree is at the end of the file).
-- [ ] `--debug findref` prints an empty `«»` line for equation targets (it matches lines by the first char's y).
+- [x] `--debug findref` prints an empty `«»` line for equation targets (it matches lines by the first char's y).
       Debug output only; the resolved target is correct.
 
 ## MuPDF follow-ups

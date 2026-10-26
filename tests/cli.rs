@@ -206,6 +206,9 @@ fn debug_findref() {
     ] {
         assert!(out.contains(want), "missing {want:?} in\n{out}");
     }
+    // Equation targets print their line (the number's box sits lower than the line's first glyph).
+    let out = ok(&["--debug", "findref", &fixture("refs.pdf"), "4"]);
+    assert!(out.contains("-> p5 «E = mc2 (2.1)»"), "{out}");
 }
 
 #[test]
