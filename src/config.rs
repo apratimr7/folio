@@ -20,7 +20,7 @@ pub enum PageMode {
 }
 
 /// When the tab bar is shown.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize, serde::Serialize)]
 #[serde(rename_all = "lowercase")]
 pub enum TabBar {
     /// With two or more tabs.
@@ -29,7 +29,7 @@ pub enum TabBar {
     Never,
 }
 
-#[derive(Clone, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, serde::Serialize)]
 #[serde(default)]
 pub struct General {
     pub theme: String,
@@ -62,6 +62,35 @@ pub struct General {
     pub restore_tabs: bool,
     pub tab_bar: TabBar,
 }
+
+/// Every `[general]` setting: (key, default when it's unset, description). The defaults that are set come from
+/// `General::default()`. `folio --list-config` turns this into the table in docs/CONFIGURATION.md, and a test
+/// checks it lists exactly the fields of `General`.
+pub const GENERAL_DOCS: &[(&str, &str, &str)] = &[
+    ("theme", "", "`midnight`, `paper`, `nord`, `gruvbox`"),
+    ("page_mode", "", "`normal`, `dark` (hue-preserving invert), `custom` (theme tint)"),
+    ("statusbar", "", "show the status bar"),
+    ("smooth_scroll", "", "animate keyboard scrolling"),
+    ("scroll_step", "", "`j`/`k` distance in screen points"),
+    ("zoom_step", "", "factor per `+`/`-`"),
+    ("page_gap", "", "space between pages, in screen points"),
+    ("auto_reload", "", "reload when the file changes (e.g. `latexmk -pvc`, `typst watch`)"),
+    ("restore_position", "", "reopen documents where you left off"),
+    ("restore_tabs", "", "reopen the last session's tabs when folio starts"),
+    ("tab_bar", "", "`auto` (shown with two or more tabs), `always`, `never`"),
+    ("render_threads", "", "background render workers"),
+    ("render_oversample", "", "render above screen density (sharper, more memory)"),
+    ("hint_chars", "", "alphabet for hint labels (any typeable characters, e.g. `\"jkl;\"`)"),
+    ("key_timeout_ms", "", "wait this long for a longer sequence (`g` vs `gg`) before running the shorter one"),
+    ("ui_font_size", "", "interface text size"),
+    ("ui_font", "auto", "path to a TTF/OTF. Default: Inter, Noto Sans, Cantarell (via fontconfig), or the system font on macOS"),
+    (
+        "ruler_dim",
+        "by theme",
+        "how dark the reading ruler makes the text above it: `0` (off) to `1` (black); 0.16 on dark themes, 0.07 on light",
+    ),
+    ("hint_dim", "by theme", "how dark the page gets around the row whose words `v` labels: `0` to `1`; 0.35 dark, 0.24 light"),
+];
 
 impl General {
     /// The ruler's "already read" dim as an alpha over black.

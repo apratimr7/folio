@@ -227,23 +227,25 @@ macOS arm64 and Linux take 1–4 min warm. In order of value:
 
 ## Documentation
 
-Goal: good docs for users and contributors that can't drift from the code. Plan (needs a decision before
-starting):
+Goal: good docs for users and contributors that can't drift from the code. Built 2026-10-26: `book.toml`,
+`docs/SUMMARY.md`, `.github/workflows/docs.yml` (needs Settings → Pages → Source: GitHub Actions once), generated
+tables refreshed by `folio --update-docs` and checked by `src/tests/docs.rs`. Still open: per-platform install
+pages and short clips.
 
-- [ ] **A documentation site with mdBook**, built from the existing `docs/*.md` (no rewrite) and published to GitHub
+- [x] **A documentation site with mdBook**, built from the existing `docs/*.md` (no rewrite) and published to GitHub
       Pages by a workflow on `main`: navigation, search, dark mode. It can grow into the project website later.
 - [ ] **Generated reference pages**, each checked by a test so a change in code without docs fails CI (as
       `docs/COMMANDS.md` already is):
-  - [ ] commands and default keys (`folio --list-commands`, exists);
-  - [ ] configuration reference generated from the config schema and its doc comments (a `--list-config` that
+  - [x] commands and default keys (`folio --list-commands`, exists);
+  - [x] configuration reference generated from the config schema and its doc comments (a `--list-config` that
         prints Markdown: key, type, default, description), replacing the hand-written tables;
-  - [ ] Lua API reference generated from the functions registered in `script.rs` (name, arguments, returns,
+  - [x] Lua API reference generated from the functions registered in `script.rs` (name, arguments, returns,
         description kept next to each registration), replacing the tables in `SCRIPTING.md`.
-- [ ] **Getting started** page with screenshots or short clips (smart references, peek, `v` hints, dark mode), a FAQ
+- [x] **Getting started** page with screenshots or short clips (smart references, peek, `v` hints, dark mode), a FAQ
       (first-run warnings, where config lives per platform), and per-platform install pages.
-- [ ] **Contributor docs**: `cargo doc --document-private-items` published under the site (`/dev/`), and doc comments
+- [x] **Contributor docs**: `cargo doc --document-private-items` published under the site (`/dev/`), and doc comments
       on the main types (`App`, `Session`, `Backend`, `View`, `Script`).
-- [ ] Link checks for the docs in CI (`lychee` or `mdbook-linkcheck`).
+- [x] Link checks for the docs in CI (`lychee` or `mdbook-linkcheck`).
 
 ## Next up
 

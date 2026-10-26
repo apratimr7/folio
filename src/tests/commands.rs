@@ -15,7 +15,7 @@ fn documented() -> BTreeSet<&'static str> {
 fn every_builtin_is_documented() {
     let docs = documented();
     let missing: Vec<&str> = BUILTINS.iter().map(|c| c.name).filter(|n| !docs.contains(n)).collect();
-    assert!(missing.is_empty(), "missing from docs/COMMANDS.md (regenerate with --list-commands): {missing:?}");
+    assert!(missing.is_empty(), "missing from docs/COMMANDS.md (run `folio --update-docs`): {missing:?}");
 }
 
 #[test]

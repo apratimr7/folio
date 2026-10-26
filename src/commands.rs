@@ -115,7 +115,7 @@ commands! {
     "reload_config" => "Reload config.toml and init.lua",
     "lua" ("code") => "Run a Lua snippet",
     "echo" ("text") => "Show a message",
-    "feed_keys" ("keys") => "Act as if keys were typed, in vim notation (gg, <C-d>, oo)",
+    "feed_keys" ("keys") => "Act as if keys were typed, in vim notation (e.g. gg or oo)",
     "open_url" ("url") => "Open a URL in the default browser",
     "screenshot" ("path") => "Save a PNG of the window (asks where without a path)",
     "quit" => "Quit folio",

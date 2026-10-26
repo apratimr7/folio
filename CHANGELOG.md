@@ -6,6 +6,9 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **A documentation website** built with mdBook from `docs/` (Getting started with screenshots, FAQ, the guides and
+  references, and API docs for contributors), published to GitHub Pages. The command, setting and Lua API tables are
+  generated from the code (`folio --update-docs`, `--list-config`, `--list-lua`) and a test keeps them in sync.
 - **Selections across pages.** Visual-mode motions (`w`, `j`, `l`, `)`…) continue onto the next or previous page,
   mouse drags can cross pages, and highlighting such a selection highlights it on every page.
 - **Editing highlights.** `gH` labels the highlights on screen; picking one (or right-clicking a highlight, or

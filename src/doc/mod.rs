@@ -201,6 +201,8 @@ pub struct Bitmap {
     pub pixels: Vec<u8>,
 }
 
+/// A document as the app sees it: page sizes, rendering, text with per-char boxes, links and the outline, in page
+/// points with a top-left origin. One instance per thread (`open_with`), since MuPDF documents aren't `Send`.
 pub trait Backend {
     fn page_count(&self) -> usize;
     /// Size of a page in points.

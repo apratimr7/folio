@@ -17,6 +17,77 @@ use mlua::{Function, Lua, MultiValue, Table, Value, Variadic};
 
 use crate::doc::{Backend, OutlineItem};
 
+/// The `folio` table, documented: (section, usage, description). `folio --list-lua` turns this into the tables in
+/// docs/SCRIPTING.md, and a test checks it lists exactly what `install_api` defines.
+pub const LUA_API: &[(&str, &str, &str)] = &[
+    (
+        "Commands and keys",
+        "folio.command(name, function(args, count) end, description)",
+        "define a command (palette, keys, `exec`, `--remote`)",
+    ),
+    (
+        "Commands and keys",
+        "folio.map(keys, command_or_function, { mode = \"normal\", desc = \"…\" })",
+        "bind keys (vim notation); `nil` unbinds",
+    ),
+    ("Commands and keys", "folio.exec(command_line)", "run any command line, built-in or Lua"),
+    ("Commands and keys", "folio.on(event, function(arg) end)", "run a function on an event (see Events)"),
+    (
+        "Reading the document",
+        "folio.state()",
+        "`{ path, title, page, page_count, zoom, mode, selection, search, page_mode, theme, tab, tab_count }` (`page` and `tab` are 1-based)",
+    ),
+    ("Reading the document", "folio.selection()", "selected text or `nil`"),
+    (
+        "Reading the document",
+        "folio.page_text(n?)",
+        "text of page `n` (default: current), words re-joined across hyphenated line breaks; `nil` outside `1..page_count`",
+    ),
+    ("Reading the document", "folio.outline()", "`{ { title, depth, page }, ... }`"),
+    ("Reading the document", "folio.highlights()", "`{ { page, text, color, note }, ... }`"),
+    ("Output and input", "folio.notify(msg, level?)", "toast; `level` is `\"info\"`, `\"warn\"` or `\"error\"`"),
+    ("Output and input", "folio.show(title, text)", "open the side text panel with this content"),
+    ("Output and input", "folio.append(text)", "append to the text panel (streaming output)"),
+    (
+        "Output and input",
+        "folio.prompt(label, function(input) end, initial?)",
+        "single-line input at the bottom; `input` is `nil` if the user pressed Esc",
+    ),
+    (
+        "Output and input",
+        "folio.pick(title, items, function(index, item) end)",
+        "fuzzy picker over a list of strings; `nil, nil` on Esc",
+    ),
+    ("Output and input", "folio.clipboard(text)", "copy to the clipboard"),
+    (
+        "System",
+        "folio.spawn(argv, function(stdout, stderr, code) end, { stdin = \"...\" })",
+        "run a process **without blocking**; the callback runs on the UI thread when it exits",
+    ),
+    ("System", "folio.open(path [, password])", "open another document (a protected one without a password asks for it)"),
+    (
+        "System",
+        "folio.set(option, value)",
+        "`statusbar`, `sidebar`, `smooth_scroll`, `scroll_step`, `zoom_step`, `page_gap`, `hint_chars`, `ruler_dim`, `hint_dim`, `theme`, `page_mode`, `theme.<color>`",
+    ),
+    ("System", "folio.config_dir", "path of the config directory"),
+    ("System", "folio.version", "folio version string"),
+];
+
+/// Events for `folio.on`: (name, argument). A test checks the app emits exactly these.
+pub const HOOKS: &[(&str, &str)] = &[
+    ("open", "path of the opened document (canonical: symlinks resolved)"),
+    ("page", "new current page (string, 1-based). The first one fires after the saved position is restored."),
+    ("selection", "selected text, after a mouse drag or **each** visual-mode change"),
+    (
+        "selection_done",
+        "selected text, once the selection has stayed the same for 0.4 s (use this for slow work, e.g. asking a model)",
+    ),
+    ("search", "the query, when a search is confirmed in the prompt or started with `search …` from Lua/remote"),
+    ("highlight", "text of a new highlight"),
+    ("quit", "—"),
+];
+
 /// A Lua function registered by the script, addressed by index.
 pub type FnId = usize;
 
@@ -97,6 +168,8 @@ struct Shared {
     doc: Option<Rc<dyn Backend>>,
 }
 
+/// The Lua runtime. Scripts read a [`Snapshot`] of the app and queue [`Effect`]s, which the app applies after the
+/// call returns.
 pub struct Script {
     lua: Lua,
     shared: Rc<RefCell<Shared>>,

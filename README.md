@@ -69,6 +69,9 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 
 ## Documentation
 
+The documentation is also a website: **[apratimr7.github.io/folio](https://apratimr7.github.io/folio/)**, starting
+with [Getting started](docs/getting-started.md).
+
 | | |
 |---|---|
 | [docs/USAGE.md](docs/USAGE.md) | how everything works, mode by mode |
@@ -88,7 +91,7 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 - **Linux** (Arch, Hyprland/Wayland): the original platform, tested by hand before the switch to MuPDF and in CI
   since; worth a manual run.
 - **macOS** (Apple Silicon): fully tested by hand (a full test pass, see `docs/testing/`) and in CI. Intel builds in
-  CI. Not yet checked: Retina sharpness, opening from Finder (not implemented yet).
+  CI. Not yet checked: Retina sharpness.
 - **Windows**: new. Builds and passes the test suite in CI; not yet run by hand. Remote control (`--remote`) isn't
   available on Windows yet. Feedback from testers is very welcome.
 

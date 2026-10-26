@@ -9,6 +9,7 @@ mod highlights;
 mod ipc;
 mod keymap;
 mod open_events;
+mod reference;
 mod refs;
 mod render;
 mod script;
@@ -35,6 +36,9 @@ usage:
   folio --print-init              print an example init.lua
   folio --init-config             write both into ~/.config/folio/ (won't overwrite)
   folio --list-commands           print every command and its default keys (Markdown)
+  folio --list-config             print every [general] setting and its default (Markdown)
+  folio --list-lua                print the Lua API reference (Markdown)
+  folio --update-docs [DIR]       rewrite the generated tables in the docs (default: ./docs)
   folio --version
   folio --remote CMD...           run commands in the running instance, e.g. --remote 'goto_page 12'
   folio --debug CMD FILE [PAGE]   inspect the backend: render|outline|text|links|refs|search
@@ -59,7 +63,24 @@ fn main() -> Result<()> {
         }
         Some("--init-config") => init_config(),
         Some("--list-commands") => {
-            list_commands();
+            print!("{}", reference::commands_md());
+            Ok(())
+        }
+        Some("--list-config") => {
+            print!("{}", reference::config_md());
+            Ok(())
+        }
+        Some("--list-lua") => {
+            for (file, name, table) in reference::blocks().into_iter().filter(|b| b.0 == "SCRIPTING.md") {
+                println!("<!-- {file}: {name} -->\n{table}");
+            }
+            Ok(())
+        }
+        Some("--update-docs") => {
+            let dir = args.get(1).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("docs"));
+            for f in reference::update_docs(&dir)? {
+                println!("updated {f}");
+            }
             Ok(())
         }
         Some("--debug") => debug(&args[1..]),
@@ -124,23 +145,6 @@ fn hand_off(files: &[PathBuf]) -> bool {
     }
     commands.push("focus_window".into());
     ipc::deliver(&commands).is_ok_and(|replies| replies.iter().all(|r| matches!(r, ipc::Reply::Ok(_))))
-}
-
-/// Markdown table of all built-in commands with their default bindings.
-fn list_commands() {
-    let mut keys: std::collections::BTreeMap<&str, Vec<String>> = Default::default();
-    for (mode, defaults) in [("", keymap::NORMAL_DEFAULTS), ("visual: ", keymap::VISUAL_DEFAULTS)] {
-        for (k, c) in defaults {
-            let name = c.split_whitespace().next().unwrap_or(c);
-            keys.entry(name).or_default().push(format!("{mode}`{}`", k.replace('|', "\\|")));
-        }
-    }
-    println!("| command | argument | default keys | description |");
-    println!("|---|---|---|---|");
-    for c in commands::BUILTINS {
-        let k = keys.get(c.name).map(|v| v.join(" ")).unwrap_or_default();
-        println!("| `{}` | {} | {} | {} |", c.name, c.arg.unwrap_or(""), k, c.description);
-    }
 }
 
 fn init_config() -> Result<()> {

@@ -90,7 +90,7 @@ cargo test                       # unit + CLI tests on tests/fixtures (docs/TEST
 cargo clippy && cargo fmt        # rustfmt.toml: max_width 130
 cargo build --release
 ./target/debug/folio --debug outline|text|links|refs|findref|search FILE [PAGE|QUERY]   # headless backend checks (PAGE is 0-based)
-./target/debug/folio --list-commands > /tmp/c.md   # regenerate docs/COMMANDS.md body after changing commands
+./target/debug/folio --update-docs                  # refresh the generated tables in docs/ (commands, settings, Lua API)
 ```
 
 ### Testing without the user
@@ -160,7 +160,8 @@ while the user is typing. Use the in-app `screenshot` command.
 
 - Match the surrounding style: terse doc comments on modules and non-obvious functions, no comment noise.
 - When behavior changes, update `CHANGELOG.md` (under `[Unreleased]`), `TODO.md`, and the relevant `docs/*.md`.
-  Regenerate `docs/COMMANDS.md` with `--list-commands` (keep its header paragraph).
+  Run `folio --update-docs` after changing commands, settings (`config::GENERAL_DOCS`) or the Lua API
+  (`script::LUA_API`, `HOOKS`); `tests/docs.rs` fails until the docs match. The site is `mdbook build` (`book.toml`).
 - Commits end with a `Co-Authored-By: Claude …` line. Ask before pushing.
 
 ## Likely next work

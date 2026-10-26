@@ -3,6 +3,7 @@
 mod backend;
 mod commands;
 mod config;
+mod docs;
 mod hints;
 mod refs;
 mod script;

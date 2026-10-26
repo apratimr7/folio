@@ -69,6 +69,8 @@ pub struct TextPanel {
     pub visible: bool,
 }
 
+/// The whole application: configuration, key maps, the Lua runtime, the open documents (tabs), and the overlays
+/// (picker, prompt, toasts). Every action runs as a named command through `run_line`.
 pub struct App {
     pub ctx: egui::Context,
     pub cfg: Config,

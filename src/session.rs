@@ -127,6 +127,8 @@ pub struct Peek {
     pub dest: DocPos,
 }
 
+/// One open document: its backend, view, render and text workers, caches, and per-document state (position,
+/// search, selection, hints, peek, saved highlights and marks). The active tab's session is `App::doc`.
 pub struct Session {
     pub path: PathBuf,
     /// Rotation and password, for every thread that opens the document. The password is never saved.
