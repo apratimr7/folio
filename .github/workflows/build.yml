@@ -2,20 +2,34 @@ name: build
 
 on:
   push:
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
   pull_request:
+    paths-ignore: ["**.md", "docs/**", "LICENSE"]
   workflow_dispatch:
+
+# A new push to a branch cancels the run still going for the previous one.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# The toolchain is pinned so a new stable release doesn't change the cache key and force a full MuPDF rebuild.
+# Bump it deliberately (and `rust-version` in Cargo.toml when the minimum changes).
+env:
+  RUST_TOOLCHAIN: "1.95"
 
 jobs:
   linux:
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - run: sudo apt-get update && sudo apt-get install -y clang libclang-dev libxkbcommon-dev libgl1-mesa-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2 # MuPDF's C build is the slow part
-      - run: cargo test
+      - run: cargo test --release # same profile as packaging, so MuPDF is compiled once
       - run: ./scripts/package-linux.sh
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: folio-linux-x86_64
           path: target/release/*-linux-*.tar.gz
@@ -26,12 +40,14 @@ jobs:
         os: [macos-15, macos-15-intel] # arm64, x86_64
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2 # MuPDF's C build is the slow part
-      - run: cargo test
+      - run: cargo test --release # same profile as packaging, so MuPDF is compiled once
       - run: ./scripts/build-macos.sh
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: folio-macos-${{ matrix.os }}
           path: target/release/*-macos-*.zip
@@ -39,13 +55,15 @@ jobs:
   windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: actions/checkout@v7
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test
+      - run: cargo test --release # same profile as packaging, so MuPDF is compiled once
       - run: ./scripts/build-windows.ps1
         shell: pwsh
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: folio-windows-x86_64
           path: target/release/*-windows-*.zip

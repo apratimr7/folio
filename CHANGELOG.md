@@ -5,6 +5,10 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Changed
+- CI: the Rust toolchain is pinned (1.95), tests run in release mode so MuPDF compiles once per job, docs-only
+  pushes skip the build, a new push cancels the previous run, and the actions are on Node 24.
+
 ## [0.2.0] — 2026-10-21
 
 First public release. folio now uses MuPDF (and is licensed AGPL-3.0-or-later), runs on Linux, macOS and Windows,

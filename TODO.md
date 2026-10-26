@@ -7,8 +7,6 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] **macOS: opening from Finder** doesn't load the file, because the Apple Event `odoc` isn't handled (winit
       doesn't expose it). Workaround: `open -a folio --args file.pdf`. Fix: a small `objc2` hook on
       `application:openURLs:`.
-- [ ] CI passes (Linux, macOS arm64/x86_64), but the workflow's actions use Node 20 and need bumping
-      (`actions/checkout`, `actions/upload-artifact`).
 - [ ] **macOS: still unchecked on real hardware** after the 2026-10-20 test pass (which covered everything else, see
       below; trackpad scrolling and pinch zoom were confirmed by hand): Retina sharpness and the Intel build. (Since the
       switch to MuPDF the app has no Homebrew/dylib dependencies.)
@@ -206,12 +204,12 @@ System and safety:
 Measured on the Windows job: about 49 min cold (MuPDF compiled twice, no cache yet), 16.5 min with a warm cache.
 macOS arm64 and Linux take 1–4 min warm. In order of value:
 
-- [ ] **Pin the Rust toolchain in CI** (`1.95` instead of `stable`): every new stable release changes the cache key
+- [x] **Pin the Rust toolchain in CI** (`1.95` instead of `stable`): every new stable release changes the cache key
       and forces a full MuPDF rebuild. Bump it deliberately.
-- [ ] **Compile MuPDF once per run**: run the tests in release mode (`cargo test --release`) so the packaging step
+- [x] **Compile MuPDF once per run**: run the tests in release mode (`cargo test --release`) so the packaging step
       reuses the same build instead of building MuPDF again with the release profile (roughly halves a cold build).
-- [ ] **Skip CI for docs-only changes** (`paths-ignore: ['**.md', 'docs/**']` on `push`/`pull_request`).
-- [ ] **Cancel superseded runs** (`concurrency: { group: ${{ github.workflow }}-${{ github.ref }},
+- [x] **Skip CI for docs-only changes** (`paths-ignore: ['**.md', 'docs/**']` on `push`/`pull_request`).
+- [x] **Cancel superseded runs** (`concurrency: { group: ${{ github.workflow }}-${{ github.ref }},
       cancel-in-progress: true }`), so a new push to `dev` stops the previous run.
 - [ ] **Parallel MSBuild for MuPDF on Windows**: `mupdf-sys` calls MSBuild without `/m`, so the third-party
       projects build one after another. Patch it (vendor `mupdf-sys` like `mupdf`) and send the fix upstream;
