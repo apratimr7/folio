@@ -125,18 +125,18 @@ Low:
         like `1409.3575`, saves it to a configurable folder and opens it.
   - [ ] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
         has no title; take the title from the first page's largest text when the metadata is empty.
-  - [ ] Recent list: `Ctrl-d` removes an entry, pin favorites to the top, and say how many missing files were
-        hidden instead of dropping them silently.
+  - [x] Recent list: `Ctrl-d` removes an entry and the title says how many missing files are hidden.
+  - [ ] Pin favorites to the top of the recent list.
   - [ ] Library search: a fuzzy picker over every PDF in configured folders (e.g. `library = ["~/Papers"]`),
         indexed in the background, so any paper opens from a few letters of its name.
   - [ ] Folder shortcuts in the keyboard file picker (home, Downloads, configured library folders).
-  - [ ] Switch back to the previous document (`alternate_file`, `<C-^>` like vim) until tabs exist (see "New window
+  - [x] Switch back to the previous document (`alternate_file`, `<C-6>`/`<C-^>` like vim) until tabs exist (see "New window
         and new tab" in Next up).
   - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
         "open the new document off the UI thread").
   - [ ] Save dialogs: export highlights to a Markdown file (today only clipboard and panel) and let `screenshot`
         ask where to save instead of requiring a path.
-  - [ ] `reveal_file` (show the document in the file manager) and `copy_path` commands.
+  - [x] `reveal_file` (show the document in the file manager) and `copy_path` commands.
 - [x] **Password-protected PDFs:** a masked prompt asks for the password (again after a wrong one);
       `folio.open(path, password)` from Lua. No `--password` flag: it would end up in shell history.
 - [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
@@ -146,7 +146,7 @@ Low:
 - [ ] **Scrollbar / position indicator** you can drag, at least on hover.
 - [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).
 - [ ] **Set as default PDF viewer** works only after the Finder `odoc` fix (Known issues).
-- [ ] Printed page numbers: `:8` is always the physical page; add a syntax for the printed page (e.g. `:p8`).
+- [x] Printed page numbers: `:8` is always the physical page; `:p8` (or `goto_page p8`) goes to the page labeled 8.
 
 ## Configuration space (to build in one go)
 

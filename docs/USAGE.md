@@ -22,6 +22,8 @@ Most commands take a **count**: `5j` scrolls five steps, `3J` moves three pages,
 | `J` `K` | next / previous page (the first `K` goes to the top of the current page) |
 | `gg` `G` | first / last page; with a count, that page |
 | `gp` or `:42` | go to a page; page labels such as `xii` work too |
+| `:p42` | go to the page *printed* 42 (its label), when the PDF numbers front matter separately |
+| `Ctrl-6` (`Ctrl-^`) | switch to the previously opened document |
 | `t` | fuzzy-search the table of contents; it opens on the current section |
 | `x` | toggle the outline sidebar (click to navigate) |
 
@@ -133,7 +135,8 @@ line by line, across pages, and the view scrolls to keep it in a comfortable spo
 
 `o` opens a file browser that starts in the current document's directory. Type to filter, `Tab` completes,
 `Enter` on a directory descends into it, and you can type or paste a full path. `O` lists recent documents.
-Position, zoom, marks, highlights and bookmarks are restored when you reopen a file.
+Position, zoom, marks, highlights and bookmarks are restored when you reopen a file. In the recent list,
+`Ctrl-d` removes an entry. `:reveal_file` shows the document in the file manager, `:copy_path` copies its path.
 
 **Auto-reload:** when the open file changes on disk (for example `latexmk -pvc` or `typst watch`), folio reloads it
 and keeps your position. `R` forces a reload.

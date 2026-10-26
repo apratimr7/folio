@@ -390,6 +390,7 @@ pub const NORMAL_DEFAULTS: &[(&str, &str)] = &[
     ("x", "toggle_sidebar"),
     ("o", "open_file"),
     ("O", "recent_files"),
+    ("<C-6>", "alternate_file"),
     ("m", "set_mark {char}"),
     ("'", "goto_mark {char}"),
     ("`", "goto_mark {char}"),

@@ -667,8 +667,8 @@ impl App {
         if name.is_empty() {
             return;
         }
-        // `:42` goes to page 42, like vim.
-        if name.chars().all(|c| c.is_ascii_digit()) {
+        // `:42` goes to page 42, like vim; `:p42` (or `:pxii`) to the page labeled 42, the printed number.
+        if name.chars().all(|c| c.is_ascii_digit()) || is_label_jump(name) {
             self.goto_page_str(name);
             return;
         }
@@ -737,6 +737,18 @@ impl App {
                 return self.open(&p);
             }
             "recent_files" => return self.open_recent_picker(),
+            "alternate_file" => {
+                // The document opened before this one, like vim's alternate file.
+                let current = self.doc.as_ref().map(|d| d.path.clone());
+                match self.global.recent.iter().find(|r| Some(&r.path) != current.as_ref() && r.path.exists()) {
+                    Some(r) => {
+                        let path = r.path.clone();
+                        self.open(&path);
+                    }
+                    None => self.notify("No other recent document"),
+                }
+                return;
+            }
             "quit" | "q" => {
                 self.save_all();
                 self.emit_quit();
@@ -1155,6 +1167,12 @@ impl App {
                     d.ruler = Some(Ruler { page: pos.page, line });
                 }
             }
+            "copy_path" => {
+                let p = d.path.to_string_lossy().to_string();
+                self.ctx.copy_text(p.clone());
+                self.notify(format!("Copied {p}"));
+            }
+            "reveal_file" => reveal_in_file_manager(&d.path),
             "rotate" => {
                 let deg = if args.is_empty() { 90 } else { args.parse::<i32>().unwrap_or(0) };
                 if deg % 90 != 0 || deg == 0 {
@@ -1221,10 +1239,12 @@ impl App {
     fn goto_page_str(&mut self, s: &str) {
         let Some(d) = &mut self.doc else { return };
         let s = s.trim();
+        let by_label = |label: &str| (0..d.view.page_count()).find(|&i| d.backend.page_label(i).as_deref() == Some(label));
         let page = match s.parse::<usize>() {
             Ok(n) => n.checked_sub(1),
+            Err(_) if is_label_jump(s) => by_label(&s[1..]),
             // Page labels, e.g. roman numerals in front matter.
-            Err(_) => (0..d.view.page_count()).find(|&i| d.backend.page_label(i).as_deref() == Some(s)),
+            Err(_) => by_label(s),
         };
         match page {
             Some(p) if p < d.view.page_count() => d.jump(DocPos { page: p, y: 0.0 }, 0.0, false),
@@ -1637,6 +1657,7 @@ impl App {
     }
 
     pub fn open_recent_picker(&mut self) {
+        let missing = self.global.recent.iter().filter(|r| !r.path.exists()).count();
         let items: Vec<PickItem> = self
             .global
             .recent
@@ -1653,7 +1674,12 @@ impl App {
             }
             return;
         }
-        self.picker = Some(Picker::new(PickerKind::Recent, "Recent", items));
+        // Files that moved or were deleted stay in the list (they may come back, e.g. on a mounted drive).
+        let title = match missing {
+            0 => "Recent  ·  Ctrl-D removes".to_string(),
+            n => format!("Recent  ·  Ctrl-D removes  ·  {n} missing file{} hidden", if n == 1 { "" } else { "s" }),
+        };
+        self.picker = Some(Picker::new(PickerKind::Recent, title, items));
     }
 
     fn open_file_picker(&mut self) {
@@ -1711,6 +1737,17 @@ impl App {
                     self.delete_mark(*c);
                     self.picker = None;
                     self.open_marks();
+                    if let Some(p) = &mut self.picker {
+                        p.selected = selected.min(p.filtered.len().saturating_sub(1));
+                    }
+                    return;
+                }
+                if let (PickerKind::Recent, Some(PickData::Path(path))) = (kind, &cur) {
+                    let selected = p.selected;
+                    self.global.recent.retain(|r| &r.path != path);
+                    self.global.save();
+                    self.picker = None;
+                    self.open_recent_picker();
                     if let Some(p) = &mut self.picker {
                         p.selected = selected.min(p.filtered.len().saturating_sub(1));
                     }
@@ -2161,6 +2198,14 @@ fn save_png(path: &Path, img: &egui::ColorImage) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `p12`, `pxiv`: a jump to the page with that label (the number printed on it).
+fn is_label_jump(s: &str) -> bool {
+    s.strip_prefix('p').is_some_and(|rest| {
+        !rest.is_empty()
+            && (rest.chars().all(|c| c.is_ascii_digit()) || rest.chars().all(|c| "ivxlcdm".contains(c.to_ascii_lowercase())))
+    })
+}
+
 fn is_web_url(s: &str) -> bool {
     let l = s.to_ascii_lowercase();
     ["http://", "https://", "mailto:"].iter().any(|p| l.starts_with(p))
@@ -2177,6 +2222,29 @@ fn open_external(target: &str) {
     };
     if let Err(e) = std::process::Command::new(opener).arg(target).spawn() {
         eprintln!("folio: {opener} failed: {e}");
+    }
+}
+
+/// Show a file selected in the desktop's file manager (Finder, Explorer, or the freedesktop `FileManager1`
+/// service; plain `xdg-open` of its folder where that's missing).
+fn reveal_in_file_manager(path: &Path) {
+    use std::process::Command;
+    let result = if cfg!(target_os = "macos") {
+        Command::new("open").arg("-R").arg(path).spawn().map(drop)
+    } else if cfg!(windows) {
+        Command::new("explorer").arg(format!("/select,{}", path.display())).spawn().map(drop)
+    } else {
+        let shown = Command::new("dbus-send")
+            .args(["--session", "--print-reply", "--dest=org.freedesktop.FileManager1", "--type=method_call"])
+            .args(["/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowItems"])
+            .arg(format!("array:string:file://{}", path.display()))
+            .arg("string:")
+            .output()
+            .is_ok_and(|o| o.status.success());
+        if shown { Ok(()) } else { Command::new("xdg-open").arg(path.parent().unwrap_or(path)).spawn().map(drop) }
+    };
+    if let Err(e) = result {
+        eprintln!("folio: couldn't show {} in the file manager: {e}", path.display());
     }
 }
 

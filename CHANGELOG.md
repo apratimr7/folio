@@ -6,6 +6,10 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- `:p42` goes to the page printed 42 (its label); `:42` stays the physical page.
+- `alternate_file` (`Ctrl-6`, like vim's `Ctrl-^`) switches to the previously opened document.
+- `reveal_file` shows the document in the file manager; `copy_path` copies its path.
+- The recent list removes an entry with `Ctrl-d` and says how many missing files it hides.
 - `rotate` (`>` clockwise, `<` back) turns the pages by 90°; the rotation is saved per document, and text,
   search, links and highlights follow it.
 - Password-protected PDFs ask for their password (masked, never saved); `folio.open(path, password)` in Lua.
