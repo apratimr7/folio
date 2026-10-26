@@ -16,6 +16,6 @@
 - [Building](BUILDING.md)
 - [Architecture](ARCHITECTURE.md)
 - [Testing](TESTING.md)
-- [Test reports]()
+- [Test reports](testing/index.md)
   - [Lua and automation (2026-10-20)](testing/2026-10-20-lua-api-report.md)
   - [macOS (2026-10-20)](testing/2026-10-20-macos-test-report.md)
