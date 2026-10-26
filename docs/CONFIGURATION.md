@@ -36,6 +36,8 @@ for the window size and position. The files are plain text, so they're easy to b
 | `render_threads` | `2` | background render workers |
 | `render_oversample` | `1.0` | render above screen density (sharper, more memory) |
 | `hint_chars` | `"asdfghjklqwertyuiop"` | alphabet for hint labels (any typeable characters, e.g. `"jkl;"`) |
+| `ruler_dim` | by theme | how dark the reading ruler makes the text above it: `0` (off) to `1` (black); 0.16 on dark themes, 0.07 on light |
+| `hint_dim` | by theme | how dark the page gets around the row whose words `v` labels: `0` to `1`; 0.35 dark, 0.24 light |
 | `key_timeout_ms` | `600` | wait for a longer sequence (`g` vs `gg`) before running the shorter one |
 | `ui_font_size` | `14` | |
 | `ui_font` | auto | path to a TTF/OTF. Default: Inter, Noto Sans, Cantarell (via fontconfig), or the system font on macOS |

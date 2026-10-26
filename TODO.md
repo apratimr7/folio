@@ -155,7 +155,7 @@ writable from Lua (`folio.get`/`folio.set`, see "Lua API gaps"), validated with 
 and documented in `docs/CONFIGURATION.md`. Current value and location in parentheses.
 
 **First (asked for):**
-- [ ] **Dimming amounts:** the visual-mode word-hint dim (alpha 90 dark / 60 light, `ui/frame.rs`), the reading
+- [x] **Dimming amounts** (`ruler_dim`, `hint_dim`; 0 turns one off): the visual-mode word-hint dim (alpha 90 dark / 60 light, `ui/frame.rs`), the reading
       ruler's "already read" dim (40 / 18, `ui/frame.rs`), and an on/off for each.
 
 Hints and visual mode:

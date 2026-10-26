@@ -6,6 +6,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- Settings `ruler_dim` and `hint_dim` set how dark the reading ruler and the `v` row hints dim the page
+  (`0` turns the dimming off); also `folio.set`.
 - Documents without a title in their metadata (most arXiv preprints) are named after the largest text at the
   top of the first page, in the window title, status bar and recent list, instead of `1409.3575v4.pdf`.
 - `:p42` goes to the page printed 42 (its label); `:42` stays the physical page.
@@ -17,6 +19,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 - Password-protected PDFs ask for their password (masked, never saved); `folio.open(path, password)` in Lua.
 
 ### Fixed
+- `config.toml` warns about values it can't use (theme colors that aren't colors, dims outside 0–1) instead of
+  ignoring them silently.
 - `folio --remote` waits for each command and exits with status 1 (printing the message) when one fails;
   output such as `lua` results is printed to stdout.
 

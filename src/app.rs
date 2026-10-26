@@ -135,9 +135,13 @@ fn build_keymaps(cfg: &Config, toasts: &mut Vec<Toast>) -> HashMap<String, ModeM
     maps
 }
 
-fn warn_unknown_settings(toasts: &mut Vec<Toast>, unknown: &[String]) {
+fn warn_unknown_settings(toasts: &mut Vec<Toast>, cfg: &Config, unknown: &[String]) {
     if !unknown.is_empty() {
         notify_into(toasts, format!("config.toml: unknown setting {}", unknown.join(", ")), Level::Warn);
+    }
+    let bad = cfg.problems();
+    if !bad.is_empty() {
+        notify_into(toasts, format!("config.toml: ignored {}", bad.join(", ")), Level::Warn);
     }
 }
 
@@ -191,7 +195,7 @@ impl App {
         let mut toasts = Vec::new();
         let cfg = match Config::load() {
             Ok((cfg, unknown)) => {
-                warn_unknown_settings(&mut toasts, &unknown);
+                warn_unknown_settings(&mut toasts, &cfg, &unknown);
                 cfg
             }
             Err(e) => {
@@ -309,8 +313,8 @@ impl App {
     pub fn reload_config(&mut self) {
         match Config::load() {
             Ok((cfg, unknown)) => {
+                warn_unknown_settings(&mut self.toasts, &cfg, &unknown);
                 self.cfg = cfg;
-                warn_unknown_settings(&mut self.toasts, &unknown);
             }
             Err(e) => {
                 notify_into(&mut self.toasts, format!("config: {e:#}"), Level::Error);
@@ -535,6 +539,12 @@ impl App {
             "scroll_step" => self.cfg.general.scroll_step = f.unwrap_or(self.cfg.general.scroll_step),
             "zoom_step" => self.cfg.general.zoom_step = f.unwrap_or(self.cfg.general.zoom_step).max(1.01),
             "hint_chars" => self.cfg.general.hint_chars = value.to_string(),
+            "ruler_dim" | "hint_dim" => {
+                let Some(f) = f.filter(|f| (0.0..=1.0).contains(f)) else {
+                    return self.warn(format!("{key}: '{value}' is not a number from 0 to 1"));
+                };
+                if key == "ruler_dim" { self.cfg.general.ruler_dim = Some(f) } else { self.cfg.general.hint_dim = Some(f) }
+            }
             "theme" => self.set_theme(value),
             "page_mode" => self.run_line(&format!("page_mode {value}"), None),
             "page_gap" => {

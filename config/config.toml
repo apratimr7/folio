@@ -15,6 +15,8 @@ restore_position = true
 render_threads = 2
 render_oversample = 1.0     # >1 renders sharper than the screen (costs memory)
 hint_chars = "asdfghjklqwertyuiop"
+# ruler_dim = 0.16          # how dark the ruler makes what you've read (0 = off, 1 = black; default by theme)
+# hint_dim = 0.35           # how dark the page gets around the row being labeled by `v` (default by theme)
 key_timeout_ms = 600        # wait this long to disambiguate e.g. `g` from `gg`
 ui_font_size = 14
 # ui_font = "/usr/share/fonts/inter/Inter-Regular.otf"

@@ -571,7 +571,7 @@ impl App {
                     );
                     // Dim what's already been read.
                     let dim = Rect::from_min_max(pr.min, Pos2::new(pr.right(), band.top()));
-                    painter.rect_filled(dim, 0.0, Color32::from_black_alpha(if theme.dark { 40 } else { 18 }));
+                    painter.rect_filled(dim, 0.0, Color32::from_black_alpha(self.cfg.general.ruler_dim_alpha(theme.dark)));
                 }
             }
 
@@ -586,7 +586,7 @@ impl App {
                     .reduce(|a, b| a.union(b));
                 if let Some(row) = row {
                     let row = row.expand2(Vec2::new(0.0, 3.0));
-                    let dim = Color32::from_black_alpha(if theme.dark { 90 } else { 60 });
+                    let dim = Color32::from_black_alpha(self.cfg.general.hint_dim_alpha(theme.dark));
                     painter.rect_filled(Rect::from_min_max(pr.min, Pos2::new(pr.right(), row.top())), 0.0, dim);
                     painter.rect_filled(Rect::from_min_max(Pos2::new(pr.left(), row.bottom()), pr.max), 0.0, dim);
                 }

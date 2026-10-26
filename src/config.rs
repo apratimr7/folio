@@ -44,6 +44,26 @@ pub struct General {
     pub render_oversample: f32,
     /// Animate scrolling.
     pub smooth_scroll: bool,
+    /// How dark the reading ruler makes what's above it (0 = off, 1 = black). Unset: a theme-dependent default.
+    pub ruler_dim: Option<f32>,
+    /// How dark the page gets around the row whose words are being labeled (`v`). Unset: theme-dependent.
+    pub hint_dim: Option<f32>,
+}
+
+impl General {
+    /// The ruler's "already read" dim as an alpha over black.
+    pub fn ruler_dim_alpha(&self, dark: bool) -> u8 {
+        dim_alpha(self.ruler_dim, if dark { 40 } else { 18 })
+    }
+
+    /// The dim around the labeled row in visual-mode hints, as an alpha over black.
+    pub fn hint_dim_alpha(&self, dark: bool) -> u8 {
+        dim_alpha(self.hint_dim, if dark { 90 } else { 60 })
+    }
+}
+
+fn dim_alpha(setting: Option<f32>, default: u8) -> u8 {
+    setting.map(|f| (f.clamp(0.0, 1.0) * 255.0).round() as u8).unwrap_or(default)
 }
 
 impl Default for General {
@@ -64,6 +84,8 @@ impl Default for General {
             key_timeout_ms: 600,
             render_oversample: 1.0,
             smooth_scroll: true,
+            ruler_dim: None,
+            hint_dim: None,
         }
     }
 }
@@ -148,6 +170,47 @@ impl Config {
         let cfg =
             serde_ignored::deserialize(de, |p| unknown.push(p.to_string())).with_context(|| format!("in {}", path.display()))?;
         Ok((cfg, unknown))
+    }
+}
+
+impl Config {
+    /// Values that parse but can't be used (they fall back to defaults), to warn about.
+    pub fn problems(&self) -> Vec<String> {
+        let mut out = Vec::new();
+        for (key, v) in [("ruler_dim", self.general.ruler_dim), ("hint_dim", self.general.hint_dim)] {
+            if let Some(f) = v.filter(|f| !(0.0..=1.0).contains(f)) {
+                out.push(format!("general.{key} = {f} (use 0 to 1)"));
+            }
+        }
+        let t = &self.theme;
+        let colors = [
+            ("bg", &t.bg),
+            ("surface", &t.surface),
+            ("surface_alt", &t.surface_alt),
+            ("border", &t.border),
+            ("text", &t.text),
+            ("text_dim", &t.text_dim),
+            ("accent", &t.accent),
+            ("accent_text", &t.accent_text),
+            ("search_match", &t.search_match),
+            ("search_current", &t.search_current),
+            ("selection", &t.selection),
+            ("ruler", &t.ruler),
+            ("hint_bg", &t.hint_bg),
+            ("hint_text", &t.hint_text),
+            ("page_bg", &t.page_bg),
+            ("page_fg", &t.page_fg),
+            ("page_shadow", &t.page_shadow),
+        ];
+        for (name, v) in colors {
+            if let Some(v) = v.as_deref().filter(|v| Rgba::parse(v).is_none()) {
+                out.push(format!("theme.{name} = \"{v}\" (use #rrggbb or #rrggbbaa)"));
+            }
+        }
+        for (name, v) in t.highlight.iter().filter(|(_, v)| Rgba::parse(v).is_none()) {
+            out.push(format!("theme.highlight.{name} = \"{v}\" (use #rrggbb or #rrggbbaa)"));
+        }
+        out
     }
 }
 
