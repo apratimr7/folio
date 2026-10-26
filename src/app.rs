@@ -667,8 +667,10 @@ impl App {
             Outcome::Pending => {}
             Outcome::Run { command, count } => self.run_line(&command, count),
             Outcome::Unbound(seq) => {
-                // Visual mode falls back to normal-mode bindings for navigation.
+                // Visual mode falls back to normal-mode bindings for navigation. `Esc` after a prefix (`h`, then
+                // changing your mind) just cancels it.
                 if self.mode == Mode::Visual
+                    && !seq.contains("<Esc>")
                     && let Ok(chords) = keymap::parse_seq(&seq)
                 {
                     let normal = self.keymaps.get("normal").cloned().unwrap_or_default();

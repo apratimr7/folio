@@ -1132,7 +1132,26 @@ impl App {
                         egui::Grid::new(egui::Id::unique("key_menu_grid")).spacing([14.0, 4.0]).show(ui, |ui| {
                             for (keys, cmd) in rows.iter().take(24) {
                                 ui.label(RichText::new(keys).monospace().color(c(t.accent)));
-                                ui.label(RichText::new(describe(cmd)).color(c(t.text)));
+                                // Highlight colors show as a swatch and their name.
+                                match crate::commands::split(cmd) {
+                                    ("highlight", color) => {
+                                        let name = if color.is_empty() {
+                                            t.highlights.first().map(|h| h.0.as_str()).unwrap_or("")
+                                        } else {
+                                            color
+                                        };
+                                        ui.horizontal(|ui| {
+                                            let (r, _) = ui.allocate_exact_size(Vec2::new(26.0, 14.0), Sense::hover());
+                                            ui.painter().rect_filled(r, 3.0, with_alpha(t.highlight_color(name), 255));
+                                            let label =
+                                                if color.is_empty() { format!("{name} (default)") } else { name.to_string() };
+                                            ui.label(RichText::new(label).color(c(t.text)));
+                                        });
+                                    }
+                                    _ => {
+                                        ui.label(RichText::new(describe(cmd)).color(c(t.text)));
+                                    }
+                                }
                                 ui.end_row();
                             }
                         });

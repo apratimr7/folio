@@ -96,13 +96,14 @@ motions continue onto the next page at a page's end, and so does a mouse drag. T
 | keys | |
 |---|---|
 | `w`/`e`, `b` | extend by a word forward / back |
-| `l`, `h` | by a character |
+| `l`, `←` | by a character forward / back |
 | `j`, `k` | to the line below / above |
 | `$`, `0` | end / start of the line |
 | `)` | to the end of the sentence |
 | `o` | swap the ends |
 | `y` / `Ctrl-c` | copy and leave visual mode |
-| `H` | highlight (`:highlight green` picks a color) |
+| `h` then a color key | highlight, like sioyek: `hy` yellow, `hg` green, `hb` blue, `hp` pink, `hu` purple, `hh` the default color (the key menu shows them) |
+| `H` | highlight in the default color |
 | `a` | highlight with a note |
 | `*` | search for the selection |
 | `Esc` / `v` | cancel |
@@ -113,6 +114,9 @@ With the mouse: drag to select, double-click to select a word, click to clear.
 `Y` copies the whole current page. `gh` lists highlights (`Enter` jumps, `Ctrl-e` edits, `Ctrl-d` deletes), and
 `ge` exports all highlights, notes and bookmarks as Markdown to the clipboard and the text panel (`gE` to a file).
 Highlights and notes are saved per document.
+
+More colors: add one under `[theme.highlight]` and bind a key to it, e.g. `"hr" = "highlight red"` under
+`[keys.visual]`.
 
 **Editing a highlight:** `gH` labels the highlights on screen; type one's label (or right-click a highlight) to open
 its menu: edit the note, copy the text, delete it, or change its color. From Lua or `--remote`, `highlight_color 2
