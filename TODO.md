@@ -18,7 +18,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] Bare equation references like `(2.8)` are only detected with a dot (to avoid noise like `(1)`).
 - [ ] Page rotation (`/Rotate`) is handled by poppler's page size, but no rotate command exists yet.
 - [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
-- [ ] PDF link-border annotations (red hyperref boxes) are drawn as authored; add an option to hide them.
+- [x] PDF link-border annotations (red hyperref boxes): MuPDF doesn't draw link borders, so nothing to hide
+      (checked on `refs.pdf`, default hyperref).
 - [x] License: AGPL-3.0-or-later (MuPDF requires AGPL compatibility).
 
 ## From user testing (2026-10-20)
