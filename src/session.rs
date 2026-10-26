@@ -254,12 +254,6 @@ pub fn render_colors(theme: &Theme) -> Colors {
 }
 
 impl Session {
-    /// Open a document now, on this thread.
-    #[cfg_attr(not(test), allow(dead_code))]
-    pub fn open(path: &Path, password: Option<String>, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
-        Self::from_prepared(Prepared::load(path, password)?, cfg, theme, ctx)
-    }
-
     /// Finish opening a document read by [`Prepared::load`]; quick, since the slow parts are done.
     pub fn from_prepared(p: Prepared, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
         let Prepared { path, opts, title, outline, state } = p;
