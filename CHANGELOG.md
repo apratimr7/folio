@@ -6,6 +6,13 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **The system's file dialog** for opening documents: `oo` (`open_dialog`). `o` is now a key prefix: `oo` dialog,
+  `of` keyboard file picker (what `o` used to open), `or` recent documents (`O` still works too).
+- **A key menu**: after a key prefix (`o`, `g`, `z`…) a small panel lists the keys that can follow and what they do.
+  Prefixes that aren't commands themselves now wait for the next key instead of timing out.
+- `gE` (`save_highlights`) saves highlights and notes to a Markdown file; `export_highlights PATH` writes one
+  directly, and `screenshot` without a path asks where to save.
+- `feed_keys KEYS` acts as if keys were typed (vim notation), for scripts, `--remote` and tests.
 - Lua hook `selection_done`: the selected text once the selection has settled (0.4 s), for slow handlers.
 - Settings `ruler_dim` and `hint_dim` set how dark the reading ruler and the `v` row hints dim the page
   (`0` turns the dimming off); also `folio.set`.

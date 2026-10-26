@@ -35,7 +35,7 @@ Each is a single self-contained program; nothing else needs to be installed.
 | **Linux** (x86_64, glibc 2.35+) | `folio-…-linux-x86_64.tar.gz` | `tar xzf folio-*.tar.gz`, then `install -Dm755 folio-*/folio ~/.local/bin/folio` (and optionally the `.desktop` file to `~/.local/share/applications/`). Needs the usual desktop libraries (`libxkbcommon`, OpenGL, Wayland or X11). |
 
 Open a PDF with `folio paper.pdf` (on macOS: `open -a folio --args paper.pdf`; opening from Finder by double-click
-isn't supported yet), or start `folio` and press `o`. Checksums are in `SHA256SUMS` on the release page.
+isn't supported yet), or start `folio` and press `oo`. Checksums are in `SHA256SUMS` on the release page.
 
 ## Build from source
 
@@ -65,7 +65,7 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 | `Ctrl-o` `Ctrl-i` | jump back/forward | `s` `S` | smart reference jump / peek |
 | `m{x}` `'{x}` | marks | `v` → row → word, then `y` `H` `a` | select → copy, highlight, annotate |
 | `b` `B` `gh` `ge` | bookmarks, highlights, export | `r` | reading ruler |
-| `i` `I` `T` | dark / tinted pages, theme | `o` `O` | open, recent |
+| `i` `I` `T` | dark / tinted pages, theme | `oo` `of` `O` | open (system dialog / type a path), recent |
 
 ## Documentation
 

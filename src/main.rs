@@ -3,6 +3,7 @@
 mod app;
 mod commands;
 mod config;
+mod dialogs;
 mod doc;
 mod ipc;
 mod keymap;

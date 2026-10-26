@@ -97,6 +97,7 @@ pub struct App {
     pub remote_out: Option<String>,
     /// The latest selection and when it changed, for the debounced `selection_done` hook.
     pub selection_settling: Option<(String, Instant)>,
+    pub dialogs: crate::dialogs::Dialogs,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -235,6 +236,7 @@ impl App {
             quit_emitted: false,
             remote_out: None,
             selection_settling: None,
+            dialogs: crate::dialogs::Dialogs::new(),
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -669,7 +671,7 @@ impl App {
         if let Some(Outcome::Run { command, count }) = self.disp.tick(&map, timeout) {
             self.run_line(&command, count);
         }
-        if let Some(d) = self.disp.deadline(timeout) {
+        if let Some(d) = self.disp.deadline(&map, timeout) {
             self.ctx.request_repaint_after(d + Duration::from_millis(5));
         }
     }
@@ -734,7 +736,7 @@ impl App {
 
     fn need_doc(&mut self) -> bool {
         if self.doc.is_none() {
-            let msg = "No document open — press o to open one";
+            let msg = "No document open — press oo to open one";
             // A remote caller needs to know the command did nothing.
             if self.remote_out.is_some() {
                 self.warn(msg)
@@ -766,6 +768,7 @@ impl App {
                 let p = shellexpand(args);
                 return self.open(&p);
             }
+            "open_dialog" => return self.open_dialog(false),
             "recent_files" => return self.open_recent_picker(),
             "alternate_file" => {
                 // The document opened before this one, like vim's alternate file.
@@ -863,9 +866,31 @@ impl App {
                 return self.delete_mark(c);
             }
             "echo" => return self.notify(args.to_string()),
+            "feed_keys" => {
+                // Keys as if typed, in vim notation (`gg`, `<C-d>`, `oo`); a key prefix stays pending as usual.
+                match keymap::parse_seq(args) {
+                    Ok(chords) => {
+                        for chord in chords {
+                            if self.doc.as_ref().is_some_and(|d| d.hints.is_some()) {
+                                if let Some(c) = chord.as_char() {
+                                    self.hint_input(c);
+                                }
+                                continue;
+                            }
+                            self.feed_key(chord);
+                        }
+                    }
+                    Err(e) => self.warn(format!("feed_keys: {e}")),
+                }
+                return;
+            }
             "open_url" => return self.open_link(args),
             "screenshot" => {
-                let path = if args.is_empty() { PathBuf::from("folio.png") } else { shellexpand(args) };
+                if args.is_empty() {
+                    let name = format!("{}.png", config::APP_NAME);
+                    return self.save_dialog(&name, ("PNG image", "png"), crate::dialogs::Purpose::Screenshot);
+                }
+                let path = shellexpand(args);
                 let cb = egui::ScreenshotCallback::new(move |img| {
                     if let Err(e) = save_png(&path, &img) {
                         eprintln!("folio: screenshot failed: {e}");
@@ -1177,6 +1202,14 @@ impl App {
                 self.add_highlight(color, note);
             }
             "highlights" => self.open_highlights(),
+            "export_highlights" if !args.is_empty() => {
+                let path = shellexpand(args);
+                self.write_highlights(&path);
+            }
+            "save_highlights" => {
+                let name = format!("{}.md", d.path.file_stem().map(|s| s.to_string_lossy()).unwrap_or_default());
+                self.save_dialog(&name, ("Markdown", "md"), crate::dialogs::Purpose::ExportHighlights);
+            }
             "export_highlights" => {
                 let md = export_markdown(d);
                 self.ctx.copy_text(md.clone());
@@ -1227,6 +1260,49 @@ impl App {
         }
         if let Some(d) = &mut self.doc {
             d.dirty = true;
+        }
+    }
+
+    /// The system's open dialog, starting in the current document's folder.
+    pub fn open_dialog(&mut self, new_tab: bool) {
+        if self.dialogs.is_open() {
+            return self.notify("A file dialog is already open");
+        }
+        let dir = self.doc.as_ref().and_then(|d| d.path.parent().map(Path::to_path_buf));
+        let wake = self.ctx.clone();
+        self.dialogs.pick_pdf(dir.as_deref(), new_tab, move || wake.request_repaint());
+    }
+
+    fn save_dialog(&mut self, name: &str, kind: (&str, &str), purpose: crate::dialogs::Purpose) {
+        if self.dialogs.is_open() {
+            return self.notify("A file dialog is already open");
+        }
+        let dir = self.doc.as_ref().and_then(|d| d.path.parent().map(Path::to_path_buf));
+        let wake = self.ctx.clone();
+        self.dialogs.save(dir.as_deref(), name, kind, purpose, move || wake.request_repaint());
+    }
+
+    /// Act on paths chosen in file dialogs.
+    pub fn poll_dialogs(&mut self) {
+        use crate::dialogs::Purpose;
+        let chosen: Vec<_> = self.dialogs.rx.try_iter().collect();
+        for (purpose, path) in chosen {
+            match purpose {
+                Purpose::Open { .. } => self.open(&path),
+                Purpose::ExportHighlights => self.write_highlights(&path),
+                Purpose::Screenshot => {
+                    let p = path.to_string_lossy().to_string();
+                    self.run_builtin("screenshot", &p, None);
+                }
+            }
+        }
+    }
+
+    fn write_highlights(&mut self, path: &Path) {
+        let Some(d) = &self.doc else { return };
+        match std::fs::write(path, export_markdown(d)) {
+            Ok(()) => self.notify(format!("Highlights saved to {}", tilde(path))),
+            Err(e) => self.warn(format!("Couldn't write {}: {e}", tilde(path))),
         }
     }
 

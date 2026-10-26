@@ -33,13 +33,14 @@ impl eframe::App for App {
         }
         self.poll_workers(&ctx);
         self.poll_jobs();
+        self.poll_dialogs();
         self.settle_selection();
         let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
         for req in remote {
             let reply = self.run_remote(&req.line);
             let _ = req.reply.send(reply);
         }
-        // A file dropped onto the window opens like `o` would.
+        // A file dropped onto the window opens like `oo` would.
         if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf())) {
             self.open(&path);
         }
@@ -89,6 +90,7 @@ impl eframe::App for App {
             let ev = p.show(&ctx, &self.theme, hint);
             self.picker_event(ev);
         }
+        self.key_menu(&ctx);
         self.toasts_ui(&ctx);
         self.request_tiles(&ctx);
 
@@ -759,7 +761,7 @@ impl App {
             FontId::proportional(15.0),
             c(t.text_dim),
         );
-        let rows = [("o", "open a file"), ("O", "recent documents"), (":", "command palette"), ("F1", "all key bindings")];
+        let rows = [("oo", "open a file"), ("O", "recent documents"), (":", "command palette"), ("F1", "all key bindings")];
         for (i, (k, d)) in rows.iter().enumerate() {
             let y = center.y + 70.0 + i as f32 * 28.0;
             let kr = Rect::from_center_size(Pos2::new(center.x - 70.0, y), Vec2::new(40.0, 22.0));
@@ -1031,6 +1033,61 @@ impl App {
                                 Rect::from_min_max(pr.min + Vec2::new(r.x0, r.y0) * zoom, pr.min + Vec2::new(r.x1, r.y1) * zoom);
                             painter.rect_stroke(sr.expand(3.0), 3.0, Stroke::new(2.0, c(t.accent)), StrokeKind::Outside);
                         }
+                    });
+            });
+    }
+
+    /// After a key prefix (`o`, `g`, `z`…), a menu of the keys that can follow and what they do.
+    fn key_menu(&mut self, ctx: &egui::Context) {
+        const DELAY: Duration = Duration::from_millis(350);
+        let Some(waited) = self.disp.pending_for() else { return };
+        let Some(map) = self.keymaps.get(self.mode.name()) else { return };
+        let rows = self.disp.continuations(map);
+        if rows.is_empty() {
+            return;
+        }
+        // Fast typists finish `gg` before the menu shows.
+        if waited < DELAY {
+            ctx.request_repaint_after(DELAY - waited);
+            return;
+        }
+        let describe = |cmd: &str| {
+            let (name, args) = crate::commands::split(cmd);
+            match crate::commands::builtin(name) {
+                // The short form: "Open a PDF: type or browse to a path (…)" → "Open a PDF: type or browse to a path".
+                Some(b) if args.is_empty() => b.description.split(" (").next().unwrap_or(b.description).to_string(),
+                _ => self
+                    .script
+                    .as_ref()
+                    .and_then(|s| s.commands().into_iter().find(|(n, _)| n == name).map(|(_, d)| d))
+                    .filter(|d| !d.is_empty() && args.is_empty())
+                    .unwrap_or_else(|| cmd.to_string()),
+            }
+        };
+        let t = self.theme.clone();
+        let prefix = self.disp.pending_display();
+        let bottom = if self.show_statusbar { 40.0 } else { 12.0 };
+        egui::Area::new(egui::Id::unique("key_menu"))
+            .order(egui::Order::Foreground)
+            .anchor(Align2::LEFT_BOTTOM, Vec2::new(14.0, -bottom))
+            .interactable(false)
+            .show(ctx, |ui| {
+                egui::Frame::new()
+                    .fill(c(t.surface))
+                    .stroke(Stroke::new(1.0, c(t.border)))
+                    .corner_radius(radius(&t))
+                    .shadow(ui.visuals().window_shadow)
+                    .inner_margin(egui::Margin::symmetric(12, 10))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(prefix).monospace().strong().color(c(t.accent)));
+                        ui.add_space(4.0);
+                        egui::Grid::new(egui::Id::unique("key_menu_grid")).spacing([14.0, 4.0]).show(ui, |ui| {
+                            for (keys, cmd) in rows.iter().take(24) {
+                                ui.label(RichText::new(keys).monospace().color(c(t.accent)));
+                                ui.label(RichText::new(describe(cmd)).color(c(t.text)));
+                                ui.end_row();
+                            }
+                        });
                     });
             });
     }

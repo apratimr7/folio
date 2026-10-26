@@ -133,10 +133,19 @@ line by line, across pages, and the view scrolls to keep it in a comfortable spo
 
 ## Files
 
-`o` opens a file browser that starts in the current document's directory. Type to filter, `Tab` completes,
-`Enter` on a directory descends into it, and you can type or paste a full path. `O` lists recent documents.
+`o` starts the open menu (the menu of follow-up keys appears after a moment, as for every key prefix):
+
+| keys | |
+|---|---|
+| `oo` | the system's file dialog, starting in the current document's folder |
+| `of` | the keyboard file picker: type to filter, `Tab` completes, `Enter` on a directory descends into it, and you can type or paste a full path |
+| `or` or `O` | recent documents |
+
+Dropping a PDF on the window opens it too. On Linux the system dialog needs the XDG desktop portal (GNOME, KDE and
+most desktops have it); use `of` where it's missing.
 Position, zoom, marks, highlights and bookmarks are restored when you reopen a file. In the recent list,
-`Ctrl-d` removes an entry. `:reveal_file` shows the document in the file manager, `:copy_path` copies its path.
+`Ctrl-d` removes an entry. `ge` copies your highlights and notes as Markdown, `gE` saves them to a file.
+`:reveal_file` shows the document in the file manager, `:copy_path` copies its path.
 
 **Auto-reload:** when the open file changes on disk (for example `latexmk -pvc` or `typst watch`), folio reloads it
 and keeps your position. `R` forces a reload.

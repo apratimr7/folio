@@ -15,7 +15,9 @@ eframe = { version = "0.37.0", default-features = false, features = ["clipboard"
 mlua = { version = "0.12.2", features = ["lua54", "vendored"] }
 mupdf = { version = "0.8.0", default-features = false, features = ["base14-fonts"] }
 nucleo-matcher = "0.3.1"
+pollster = "0.4"
 regex = "1.13.1"
+rfd = "0.17.2"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_ignored = "0.1.14"
 serde_json = "1.0.154"

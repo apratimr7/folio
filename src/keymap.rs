@@ -316,21 +316,35 @@ impl Dispatcher {
         if self.awaiting_char.is_some() || self.pending.is_empty() || since.elapsed() < timeout {
             return None;
         }
-        match map.bindings.get(&self.pending).cloned() {
-            Some(cmd) => Some(self.fire(cmd)),
-            None => {
-                self.reset();
-                Some(Outcome::Pending)
-            }
-        }
+        // A prefix that isn't bound itself (`o` before `oo`/`of`) waits for the next key, with the key menu up.
+        let cmd = map.bindings.get(&self.pending).cloned()?;
+        Some(self.fire(cmd))
     }
 
     /// Time until `tick` might fire, so the UI can schedule a repaint.
-    pub fn deadline(&self, timeout: Duration) -> Option<Duration> {
-        if self.pending.is_empty() || self.awaiting_char.is_some() {
+    pub fn deadline(&self, map: &ModeMap, timeout: Duration) -> Option<Duration> {
+        if self.pending.is_empty() || self.awaiting_char.is_some() || !map.bindings.contains_key(&self.pending) {
             return None;
         }
         Some(timeout.saturating_sub(self.since?.elapsed()))
+    }
+
+    /// How long the current key prefix has been waiting, if one is.
+    pub fn pending_for(&self) -> Option<Duration> {
+        (!self.pending.is_empty() && self.awaiting_char.is_none()).then(|| self.since.map(|t| t.elapsed())).flatten()
+    }
+
+    /// The bindings that continue the typed prefix: (the rest of the keys, command), sorted by keys.
+    pub fn continuations(&self, map: &ModeMap) -> Vec<(String, String)> {
+        let n = self.pending.len();
+        let mut out: Vec<(String, String)> = map
+            .bindings
+            .iter()
+            .filter(|(seq, _)| seq.len() > n && seq[..n] == self.pending[..])
+            .map(|(seq, cmd)| (format_seq(&seq[n..]), cmd.clone()))
+            .collect();
+        out.sort();
+        out
     }
 
     fn fire(&mut self, cmd: String) -> Outcome {
@@ -388,7 +402,9 @@ pub const NORMAL_DEFAULTS: &[(&str, &str)] = &[
     ("<C-p>", "command_palette"),
     ("t", "toc"),
     ("x", "toggle_sidebar"),
-    ("o", "open_file"),
+    ("oo", "open_dialog"),
+    ("of", "open_file"),
+    ("or", "recent_files"),
     ("O", "recent_files"),
     ("<C-6>", "alternate_file"),
     ("m", "set_mark {char}"),
@@ -422,6 +438,7 @@ pub const NORMAL_DEFAULTS: &[(&str, &str)] = &[
     ("<F1>", "help"),
     ("g?", "help"),
     ("ge", "export_highlights"),
+    ("gE", "save_highlights"),
     ("gm", "marks"),
     ("<C-n>", "toggle_text_panel"),
 ];
@@ -529,5 +546,19 @@ mod tests {
         let mut d = Dispatcher::default();
         assert_eq!(d.feed(&m, Chord::char('g')), Outcome::Pending);
         assert_eq!(d.tick(&m, Duration::ZERO), Some(Outcome::Run { command: "one".into(), count: None }));
+    }
+
+    #[test]
+    fn unbound_prefix_waits_and_lists_continuations() {
+        let m = map(&[("oo", "open_dialog"), ("of", "open_file"), ("j", "move_down")]);
+        let mut d = Dispatcher::default();
+        assert_eq!(d.feed(&m, Chord::char('o')), Outcome::Pending);
+        assert_eq!(d.tick(&m, Duration::ZERO), None, "an unbound prefix doesn't time out");
+        assert_eq!(d.deadline(&m, Duration::ZERO), None, "and needs no repaint timer");
+        assert!(d.pending_for().is_some());
+        let got = d.continuations(&m);
+        assert_eq!(got, [("f".to_string(), "open_file".to_string()), ("o".to_string(), "open_dialog".to_string())]);
+        assert_eq!(d.feed(&m, Chord::char('f')), Outcome::Run { command: "open_file".into(), count: None });
+        assert!(d.pending_for().is_none());
     }
 }

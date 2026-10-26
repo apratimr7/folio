@@ -111,7 +111,8 @@ Low:
 
 ## Missing basics
 
-- [ ] **Native file dialog for opening documents** (user request, 2026-10-21). Today a file outside the current
+- [x] **Native file dialog for opening documents** (done: `oo`, `open_dialog`; `o` is now a prefix with a key
+      menu, `of` the keyboard picker, `or`/`O` recents) (user request, 2026-10-21). Today a file outside the current
       folder or the recent list needs its path typed or pasted into `o`, which is too much hassle. Add an
       `open_dialog` command that shows the system's own file chooser, filtered to PDFs and starting in the current
       document's folder: GTK/KDE through the XDG desktop portal on Linux, `NSOpenPanel` on macOS, the common file
@@ -136,8 +137,8 @@ Low:
         and new tab" in Next up).
   - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
         "open the new document off the UI thread").
-  - [ ] Save dialogs: export highlights to a Markdown file (today only clipboard and panel) and let `screenshot`
-        ask where to save instead of requiring a path.
+  - [x] Save dialogs: `gE`/`save_highlights` saves highlights as Markdown (`export_highlights PATH` writes
+        directly), and `screenshot` without a path asks where to save.
   - [x] `reveal_file` (show the document in the file manager) and `copy_path` commands.
 - [x] **Password-protected PDFs:** a masked prompt asks for the password (again after a wrong one);
       `folio.open(path, password)` from Lua. No `--password` flag: it would end up in shell history.
