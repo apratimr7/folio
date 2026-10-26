@@ -90,7 +90,8 @@ schemes, paths) aren't opened, since they could launch files or programs; folio 
 2. The other rows dim and each word of that row gets a short label. Type one: the selection starts on that word.
 
 `v` again (instead of a label) starts at the first word on screen, and `Esc` cancels. If a search match is on screen
-or the reading ruler is on, `v` starts there right away, without labels. Then:
+or the reading ruler is on, `v` starts there right away, without labels. A selection can run across pages: the
+motions continue onto the next page at a page's end, and so does a mouse drag. Then:
 
 | keys | |
 |---|---|

@@ -6,6 +6,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **Selections across pages.** Visual-mode motions (`w`, `j`, `l`, `)`…) continue onto the next or previous page,
+  mouse drags can cross pages, and highlighting such a selection highlights it on every page.
 - **Editing highlights.** `gH` labels the highlights on screen; picking one (or right-clicking a highlight, or
   `Ctrl-e` in the `gh` list) opens a menu to edit its note, copy it, delete it or change its color. Commands
   `highlight_color N COLOR`, `highlight_note N TEXT` and `delete_highlight N` do the same from Lua and `--remote`.

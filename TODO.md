@@ -12,7 +12,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       switch to MuPDF the app has no Homebrew/dylib dependencies.)
 - [ ] After an auto-reload where the text reflowed (an edited LaTeX source), saved highlights keep their old
       positions and char offsets. Re-anchor them by searching for their text near the old place.
-- [ ] Selections can't span pages (visual mode stays on the page where it started).
+- [x] Selections can't span pages: they can now (motions and mouse drags continue across pages; a highlight
+      over several pages is stored as one piece per page).
 - [ ] Smart references are heuristic. Known gaps: author–year citations (`Smith et al. 2020`), equation numbers
       that aren't at the end of their text line, two-column layouts (MuPDF keeps the columns apart; its block structure could
       help further, see MuPDF follow-ups).
@@ -265,7 +266,8 @@ starting):
 - [ ] Two-page / book mode, and a horizontal-scroll mode for slides.
 - [ ] Presentation mode (one page, fit page, no chrome).
 - [ ] SyncTeX: forward search via `--remote 'synctex file.tex:line'` and inverse search to an editor command.
-- [ ] Cross-page and column-aware selection (MuPDF's reading order already follows columns).
+- [x] Cross-page selection. Column-aware: MuPDF's reading order already keeps columns apart; check on real
+      two-column papers.
 - [x] Highlight editing: `gH` hints (or right-click, or `Ctrl-e` in `gh`) open a menu: note, copy, delete, color;
       `highlight_color`/`highlight_note`/`delete_highlight N` commands.
 - [ ] Search options: regex, whole word, search within the current section.

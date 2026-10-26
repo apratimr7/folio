@@ -565,13 +565,14 @@ impl App {
             }
 
             // Selection.
-            if let Some(sel) = d.selection.filter(|s| s.page == p) {
+            if let Some(sel) = d.selection {
                 let t = d.page_texts.get(&p).cloned().unwrap_or_else(|| d.page_text(p));
-                let (s, e) = sel.range();
-                for r in t.span_rects(s, e) {
-                    painter.rect_filled(to_screen(&r).expand2(Vec2::new(1.0, 1.5)), 2.0, c(theme.selection));
+                if let Some((s, e)) = sel.range_on(p, t.chars.len()) {
+                    for r in t.span_rects(s, e) {
+                        painter.rect_filled(to_screen(&r).expand2(Vec2::new(1.0, 1.5)), 2.0, c(theme.selection));
+                    }
                 }
-                if let Some(cr) = t.rects.get(sel.cursor) {
+                if let Some(cr) = t.rects.get(sel.cursor.idx).filter(|_| sel.cursor.page == p) {
                     let sr = to_screen(cr);
                     painter.line_segment([sr.right_top(), sr.right_bottom()], Stroke::new(2.0, c(theme.accent)));
                 }
@@ -717,12 +718,12 @@ impl App {
             } else if pos.y < rect.top() + 20.0 {
                 d.view.scroll_by(-12.0, false);
             }
-            if let Some((p2, x, y)) = to_doc(d, pos)
-                && p2 == page
-            {
-                let t = d.page_text(page);
+            // The drag can continue onto other pages.
+            if let Some((p2, x, y)) = to_doc(d, pos) {
+                let t = d.page_text(p2);
                 if let Some(ci) = t.char_at(x, y) {
-                    d.selection = Some(crate::session::Selection { page, anchor, cursor: ci });
+                    let at = |page, idx| crate::session::TextPos { page, idx };
+                    d.selection = Some(crate::session::Selection { anchor: at(page, anchor), cursor: at(p2, ci) });
                     self.mode = Mode::Visual;
                 }
             }
@@ -740,7 +741,7 @@ impl App {
                 if let Some(ci) = t.char_at(x, y)
                     && let Some(&(s, e)) = t.words().iter().find(|&&(s, e)| ci >= s && ci < e)
                 {
-                    d.selection = Some(crate::session::Selection { page, anchor: s, cursor: e - 1 });
+                    d.selection = Some(crate::session::Selection::on_page(page, s, e - 1));
                     self.mode = Mode::Visual;
                 }
             }

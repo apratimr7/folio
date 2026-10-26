@@ -34,18 +34,39 @@ pub struct SearchState {
     pub jump_on_first: bool,
 }
 
-/// Keyboard/mouse text selection within one page. `anchor` and `cursor` are
-/// inclusive char indices.
+/// A place in the text: a page and a char index on it, ordered by page, then char.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TextPos {
+    pub page: usize,
+    pub idx: usize,
+}
+
+/// Keyboard/mouse text selection. `anchor` and `cursor` are inclusive and can be on different pages.
 #[derive(Clone, Copy, Debug)]
 pub struct Selection {
-    pub page: usize,
-    pub anchor: usize,
-    pub cursor: usize,
+    pub anchor: TextPos,
+    pub cursor: TextPos,
 }
 
 impl Selection {
-    pub fn range(&self) -> (usize, usize) {
-        (self.anchor.min(self.cursor), self.anchor.max(self.cursor) + 1)
+    pub fn on_page(page: usize, anchor: usize, cursor: usize) -> Self {
+        Self { anchor: TextPos { page, idx: anchor }, cursor: TextPos { page, idx: cursor } }
+    }
+
+    /// First and last selected positions.
+    pub fn bounds(&self) -> (TextPos, TextPos) {
+        (self.anchor.min(self.cursor), self.anchor.max(self.cursor))
+    }
+
+    /// The selected chars `[start, end)` on `page`, which has `len` chars, if the selection reaches it.
+    pub fn range_on(&self, page: usize, len: usize) -> Option<(usize, usize)> {
+        let (a, b) = self.bounds();
+        if page < a.page || page > b.page {
+            return None;
+        }
+        let start = if page == a.page { a.idx } else { 0 };
+        let end = if page == b.page { b.idx + 1 } else { len };
+        Some((start.min(len), end.min(len)))
     }
 }
 
@@ -405,9 +426,15 @@ impl Session {
 
     pub fn selection_text(&mut self) -> Option<String> {
         let sel = self.selection?;
-        let text = self.page_text(sel.page);
-        let (s, e) = sel.range();
-        Some(text.span_text(s, e))
+        let (a, b) = sel.bounds();
+        let mut parts = Vec::new();
+        for page in a.page..=b.page {
+            let text = self.page_text(page);
+            if let Some((s, e)) = sel.range_on(page, text.chars.len()) {
+                parts.push(text.span_text(s, e));
+            }
+        }
+        Some(parts.join(" "))
     }
 
     pub fn evict_textures(&mut self, budget: usize) {
@@ -441,6 +468,19 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selection_ranges_per_page() {
+        let at = |page, idx| TextPos { page, idx };
+        // Backwards across three pages: page 2 char 5 back to page 0 char 40.
+        let sel = Selection { anchor: at(2, 5), cursor: at(0, 40) };
+        assert_eq!(sel.bounds(), (at(0, 40), at(2, 5)));
+        assert_eq!(sel.range_on(0, 100), Some((40, 100)));
+        assert_eq!(sel.range_on(1, 80), Some((0, 80)));
+        assert_eq!(sel.range_on(2, 90), Some((0, 6)));
+        assert_eq!(sel.range_on(3, 90), None);
+        assert_eq!(Selection::on_page(4, 7, 3).range_on(4, 50), Some((3, 8)));
+    }
 
     #[test]
     fn eof_marker_near_end() {

@@ -12,7 +12,7 @@ use crate::doc::{DocPos, LinkTarget, PageText, Rect};
 use crate::keymap::{self, Chord, Dispatcher, ModeMap, Outcome};
 use crate::refs::{self, RefKind};
 use crate::script::{Effect, FnId, Level, Script, Snapshot};
-use crate::session::{HintAction, HintItem, HintMode, Hints, Peek, Ruler, Selection, Session, render_colors};
+use crate::session::{HintAction, HintItem, HintMode, Hints, Peek, Ruler, Selection, Session, TextPos, render_colors};
 use crate::store::{self, Bookmark, Global, Highlight};
 use crate::ui::picker::{PickData, PickItem, Picker, PickerEvent, PickerKind};
 use crate::ui::style;
@@ -1439,28 +1439,28 @@ impl App {
         }
     }
 
+    /// Highlight the selection: one highlight per page it covers, sharing the color, note and time.
     fn add_highlight(&mut self, color: String, note: String) {
         let Some(d) = &mut self.doc else { return };
         let Some(sel) = d.selection else { return };
-        let t = d.page_text(sel.page);
-        let (s, e) = sel.range();
-        let text = t.span_text(s, e);
-        let rects = t.span_rects(s, e).into_iter().map(Into::into).collect();
-        d.state.highlights.push(Highlight {
-            page: sel.page,
-            start: s,
-            end: e,
-            rects,
-            text: text.clone(),
-            color,
-            note,
-            created: store::now(),
-        });
+        let (a, b) = sel.bounds();
+        let created = store::now();
+        let mut texts = Vec::new();
+        for page in a.page..=b.page {
+            let t = d.page_text(page);
+            let Some((s, e)) = sel.range_on(page, t.chars.len()).filter(|(s, e)| e > s) else { continue };
+            let text = t.span_text(s, e);
+            let rects = t.span_rects(s, e).into_iter().map(Into::into).collect();
+            texts.push(text.clone());
+            // The note goes on the first piece only.
+            let note = if texts.len() == 1 { note.clone() } else { String::new() };
+            d.state.highlights.push(Highlight { page, start: s, end: e, rects, text, color: color.clone(), note, created });
+        }
         d.state.highlights.sort_by_key(|h| (h.page, h.start));
         d.save_state();
         d.selection = None;
         self.mode = Mode::Normal;
-        self.emit("highlight", text);
+        self.emit("highlight", texts.join(" "));
     }
 
     fn visual_start_is_obvious(&self) -> bool {
@@ -1544,13 +1544,13 @@ impl App {
         if let Some(h) = d.search.as_ref().and_then(|s| s.current.map(|c| s.hits[c].clone()))
             && h.rects.first().is_some_and(|r| d.view.is_visible(h.page, r.y0, r.y1))
         {
-            d.selection = Some(Selection { page: h.page, anchor: h.start, cursor: h.end.saturating_sub(1) });
+            d.selection = Some(Selection::on_page(h.page, h.start, h.end.saturating_sub(1)));
             return true;
         }
         if let Some(r) = d.ruler {
             let t = d.page_text(r.page);
             if let Some(&(s, e)) = t.lines().get(r.line) {
-                d.selection = Some(Selection { page: r.page, anchor: s, cursor: e.saturating_sub(1).max(s) });
+                d.selection = Some(Selection::on_page(r.page, s, e.saturating_sub(1).max(s)));
                 return true;
             }
         }
@@ -1559,7 +1559,7 @@ impl App {
             let top = d.view.pos_at(0.0);
             let min_y = if page == top.page { top.y } else { 0.0 };
             if let Some(&(s, e)) = t.words().iter().find(|&&(s, _)| t.rects[s].y0 >= min_y) {
-                d.selection = Some(Selection { page, anchor: s, cursor: e - 1 });
+                d.selection = Some(Selection::on_page(page, s, e - 1));
                 return true;
             }
         }
@@ -1664,7 +1664,7 @@ impl App {
             }
             HintAction::Highlight(i) => self.open_highlight_menu(i),
             HintAction::Word(start, end) => {
-                d.selection = Some(Selection { page: item.page, anchor: start, cursor: end.saturating_sub(1) });
+                d.selection = Some(Selection::on_page(item.page, start, end.saturating_sub(1)));
                 self.mode = Mode::Visual;
                 if let Some(t) = self.doc.as_mut().and_then(|d| d.selection_text()) {
                     self.emit("selection", t);
@@ -2264,84 +2264,110 @@ fn move_ruler(d: &mut Session, delta: i64, animate: bool) {
     }
 }
 
+/// The next page after `page` (or before it, going back) that has text.
+fn text_page(d: &mut Session, page: usize, forward: bool) -> Option<usize> {
+    let mut p = page;
+    loop {
+        p = if forward { p + 1 } else { p.checked_sub(1)? };
+        if p >= d.view.page_count() {
+            return None;
+        }
+        if !d.page_text(p).chars.is_empty() {
+            return Some(p);
+        }
+    }
+}
+
+/// Move the selection's cursor. Motions continue onto the next or previous page at a page's end.
 fn extend_selection(d: &mut Session, cmd: &str) -> bool {
     let Some(mut sel) = d.selection else { return false };
-    let t = d.page_text(sel.page);
+    let page = sel.cursor.page;
+    let t = d.page_text(page);
     let n = t.chars.len();
     if n == 0 {
         return false;
     }
-    let cur = sel.cursor.min(n - 1);
+    let cur = sel.cursor.idx.min(n - 1);
     let words = t.words();
     let lines = t.lines();
     let line_of = |i: usize| lines.iter().position(|&(s, e)| i >= s && i < e.max(s + 1)).unwrap_or(0);
-    match cmd {
-        "sel_word_next" => {
-            if let Some(&(_, e)) = words.iter().find(|&&(_, e)| e - 1 > cur) {
-                sel.cursor = e - 1;
-            }
-        }
-        "sel_word_prev" => {
-            if let Some(&(s, _)) = words.iter().rev().find(|&&(s, _)| s < cur) {
-                sel.cursor = s;
-            }
-        }
-        "sel_char_next" => {
-            let mut i = cur + 1;
-            while i < n && t.chars[i] == '\n' {
-                i += 1;
-            }
-            if i < n {
-                sel.cursor = i;
-            }
-        }
-        "sel_char_prev" => {
-            let mut i = cur;
-            while i > 0 {
-                i -= 1;
-                if t.chars[i] != '\n' {
-                    sel.cursor = i;
-                    break;
-                }
-            }
-        }
+    let at = |page: usize, idx: usize| TextPos { page, idx };
+    // The closest char to `x` on a line.
+    let nearest = |t: &PageText, (s, e): (usize, usize), x: f32| {
+        (s..e)
+            .min_by(|&a, &b| {
+                (t.rects[a].x1 - x).abs().partial_cmp(&(t.rects[b].x1 - x).abs()).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or(s)
+    };
+    let moved = match cmd {
+        "sel_word_next" => match words.iter().find(|&&(_, e)| e - 1 > cur) {
+            Some(&(_, e)) => Some(at(page, e - 1)),
+            None => text_page(d, page, true).and_then(|p| d.page_text(p).words().first().map(|&(_, e)| at(p, e - 1))),
+        },
+        "sel_word_prev" => match words.iter().rev().find(|&&(s, _)| s < cur) {
+            Some(&(s, _)) => Some(at(page, s)),
+            None => text_page(d, page, false).and_then(|p| d.page_text(p).words().last().map(|&(s, _)| at(p, s))),
+        },
+        "sel_char_next" => match (cur + 1..n).find(|&i| t.chars[i] != '\n') {
+            Some(i) => Some(at(page, i)),
+            None => text_page(d, page, true).map(|p| at(p, 0)),
+        },
+        "sel_char_prev" => match (0..cur).rev().find(|&i| t.chars[i] != '\n') {
+            Some(i) => Some(at(page, i)),
+            None => text_page(d, page, false).map(|p| at(p, d.page_text(p).chars.len().saturating_sub(1))),
+        },
         "sel_line_next" | "sel_line_prev" => {
+            let next = cmd == "sel_line_next";
+            let x = t.rects[cur].x1;
             let li = line_of(cur);
-            let target = if cmd == "sel_line_next" { li + 1 } else { li.wrapping_sub(1) };
-            if let Some(&(s, e)) = lines.get(target) {
-                let x = t.rects[cur].x1;
-                let best = (s..e).min_by(|&a, &b| {
-                    (t.rects[a].x1 - x).abs().partial_cmp(&(t.rects[b].x1 - x).abs()).unwrap_or(std::cmp::Ordering::Equal)
-                });
-                sel.cursor = best.unwrap_or(s);
+            let target = if next { li + 1 } else { li.wrapping_sub(1) };
+            match lines.get(target) {
+                Some(&line) => Some(at(page, nearest(&t, line, x))),
+                None => text_page(d, page, next).and_then(|p| {
+                    let pt = d.page_text(p);
+                    let pl = pt.lines();
+                    let line = if next { pl.first() } else { pl.last() };
+                    line.map(|&l| at(p, nearest(&pt, l, x)))
+                }),
             }
         }
-        "sel_line_end" => {
-            if let Some(&(_, e)) = lines.get(line_of(cur)) {
-                sel.cursor = e.saturating_sub(1);
-            }
-        }
-        "sel_line_start" => {
-            if let Some(&(s, _)) = lines.get(line_of(cur)) {
-                sel.cursor = s;
-            }
-        }
+        "sel_line_end" => lines.get(line_of(cur)).map(|&(_, e)| at(page, e.saturating_sub(1))),
+        "sel_line_start" => lines.get(line_of(cur)).map(|&(s, _)| at(page, s)),
         "sel_sentence_next" => {
-            let mut i = cur + 1;
-            while i < n {
-                if matches!(t.chars[i], '.' | '?' | '!') && t.chars.get(i + 1).is_none_or(|c| c.is_whitespace()) {
+            // Up to the next sentence end, looking a couple of pages ahead.
+            let mut found = None;
+            let (mut p, mut from) = (page, cur + 1);
+            for _ in 0..3 {
+                let pt = d.page_text(p);
+                let end = (from..pt.chars.len())
+                    .find(|&i| matches!(pt.chars[i], '.' | '?' | '!') && pt.chars.get(i + 1).is_none_or(|c| c.is_whitespace()));
+                if let Some(i) = end {
+                    found = Some(at(p, i));
                     break;
                 }
-                i += 1;
+                match text_page(d, p, true) {
+                    Some(np) => (p, from) = (np, 0),
+                    None => {
+                        found = Some(at(p, pt.chars.len().saturating_sub(1)));
+                        break;
+                    }
+                }
             }
-            sel.cursor = i.min(n - 1);
+            found
         }
-        "sel_swap" => std::mem::swap(&mut sel.anchor, &mut sel.cursor),
+        "sel_swap" => {
+            std::mem::swap(&mut sel.anchor, &mut sel.cursor);
+            Some(sel.cursor)
+        }
         _ => return false,
+    };
+    if let Some(pos) = moved {
+        sel.cursor = pos;
     }
     d.selection = Some(sel);
-    let r = t.rects[sel.cursor];
-    reveal(d, sel.page, Some(r), true);
+    let r = d.page_text(sel.cursor.page).rects.get(sel.cursor.idx).copied();
+    reveal(d, sel.cursor.page, r, true);
     true
 }
 
