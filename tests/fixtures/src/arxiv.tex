@@ -1,0 +1,18 @@
+% arxiv.pdf: an arXiv-style preprint with no title in its metadata (no hyperref), a two-line \maketitle title,
+% and the arXiv identifier stamped sideways in the left margin.
+\pdfinfoomitdate=1 \pdftrailerid{} \pdfsuppressptexinfo=-1
+\documentclass[letterpaper]{article}
+\usepackage[letterpaper]{geometry}
+\usepackage{graphicx,eso-pic}
+\AddToShipoutPictureBG*{\AtPageLowerLeft{\put(20,250){\rotatebox{90}{\fontsize{20}{24}\selectfont arXiv:1409.3575v4 [hep-th] 12 Oct 2014}}}}
+\title{Black Hole Entropy from\\ Near-Horizon Microstates}
+\author{A. Author \and B. Author}
+\date{}
+\begin{document}
+\maketitle
+\begin{abstract}
+We count the microstates of a near-extremal black hole and match the Bekenstein--Hawking entropy.
+\end{abstract}
+\section{Introduction}
+The entropy of a black hole is proportional to the area of its horizon.
+\end{document}

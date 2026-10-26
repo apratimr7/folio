@@ -6,6 +6,8 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- Documents without a title in their metadata (most arXiv preprints) are named after the largest text at the
+  top of the first page, in the window title, status bar and recent list, instead of `1409.3575v4.pdf`.
 - `:p42` goes to the page printed 42 (its label); `:42` stays the physical page.
 - `alternate_file` (`Ctrl-6`, like vim's `Ctrl-^`) switches to the previously opened document.
 - `reveal_file` shows the document in the file manager; `copy_path` copies its path.

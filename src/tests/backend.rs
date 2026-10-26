@@ -353,3 +353,17 @@ fn generate_encrypted_fixture() {
     src.save_with_options(fixture("encrypted.pdf").to_str().unwrap(), opts).unwrap();
     assert!(doc::open(&fixture("encrypted.pdf")).is_err());
 }
+
+#[test]
+fn titles_from_the_first_page() {
+    let title = |name: &str| {
+        let d = open_fixture(name);
+        crate::session::title_from_text(&d.page_text(0), d.page_size(0).1)
+    };
+    assert_eq!(open_fixture("arxiv.pdf").metadata().title, None);
+    // Two title lines joined; the sideways arXiv stamp, authors and abstract left out.
+    assert_eq!(title("arxiv.pdf").as_deref(), Some("Black Hole Entropy from Near-Horizon Microstates"));
+    assert_eq!(title("rudin_style.pdf").as_deref(), Some("2 Basic Topology"));
+    // Nothing stands out from the body text.
+    assert_eq!(title("twocol.pdf"), None);
+}

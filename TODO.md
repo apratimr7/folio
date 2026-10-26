@@ -123,7 +123,7 @@ Low:
         remote socket) instead of starting a second one; a flag to force a new window.
   - [ ] Open by URL or arXiv ID: `open_url`-style command that downloads a pasted `arxiv.org`/PDF link or an ID
         like `1409.3575`, saves it to a configurable folder and opens it.
-  - [ ] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
+  - [x] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
         has no title; take the title from the first page's largest text when the metadata is empty.
   - [x] Recent list: `Ctrl-d` removes an entry and the title says how many missing files are hidden.
   - [ ] Pin favorites to the top of the recent list.

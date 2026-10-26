@@ -154,6 +154,46 @@ fn ends_with_eof(path: &Path, len: u64) -> bool {
     buf.windows(5).any(|w| w == b"%%EOF")
 }
 
+/// A title for documents without one in their metadata (most arXiv preprints): the largest text in the top
+/// half of the first page, with the lines that continue it, if it stands out from the body text.
+pub fn title_from_text(text: &PageText, page_height: f32) -> Option<String> {
+    let median = |mut v: Vec<f32>| {
+        v.sort_by(f32::total_cmp);
+        v.get(v.len() / 2).copied()
+    };
+    let lines: Vec<(usize, usize, f32, Rect)> = text
+        .lines()
+        .into_iter()
+        .filter_map(|(s, e)| {
+            let heights = (s..e).filter(|&i| !text.chars[i].is_whitespace()).map(|i| text.rects[i].height()).collect();
+            let rect = text.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b))?;
+            Some((s, e, median(heights)?, rect))
+        })
+        .collect();
+    let body = median(lines.iter().map(|l| l.2).collect())?;
+    let is_candidate = |&(s, e, _, r): &(usize, usize, f32, Rect)| {
+        let t = text.span_text(s, e);
+        r.y0 < page_height * 0.5 && t.chars().filter(|c| c.is_alphabetic()).count() >= 3 && !t.contains("arXiv")
+    };
+    let top = lines.iter().filter(|l| is_candidate(l)).map(|l| l.2).fold(0.0, f32::max);
+    if top < body * 1.2 {
+        return None;
+    }
+    let first = lines.iter().position(|l| is_candidate(l) && l.2 >= top * 0.95)?;
+    let mut title = Vec::new();
+    let mut prev: Option<Rect> = None;
+    for l in lines[first..].iter().take_while(|l| l.2 >= top * 0.9) {
+        // A continuation line sits right below the previous one.
+        if prev.is_some_and(|p| l.3.y0 - p.y1 > l.2 * 1.5) {
+            break;
+        }
+        title.push(text.span_text(l.0, l.1).trim().to_string());
+        prev = Some(l.3);
+    }
+    let title: String = title.join(" ").chars().take(150).collect();
+    (title.chars().filter(|c| c.is_alphabetic()).count() >= 4).then_some(title)
+}
+
 pub fn render_colors(theme: &Theme) -> Colors {
     Colors { fg: theme.page_fg, bg: theme.page_bg }
 }
@@ -167,8 +207,11 @@ impl Session {
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         let meta = backend.metadata();
         let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let title =
-            meta.title.filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word")).unwrap_or(file_name);
+        let title = meta
+            .title
+            .filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word"))
+            .or_else(|| title_from_text(&backend.page_text(0), backend.page_size(0).1))
+            .unwrap_or(file_name);
         let wake = {
             let ctx = ctx.clone();
             move || ctx.request_repaint()
