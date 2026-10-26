@@ -12,7 +12,7 @@ use crate::doc::{DocPos, LinkTarget, PageText, Rect};
 use crate::keymap::{self, Chord, Dispatcher, ModeMap, Outcome};
 use crate::refs::{self, RefKind};
 use crate::script::{Effect, FnId, Level, Script, Snapshot};
-use crate::session::{HintAction, HintItem, HintMode, Hints, Peek, Ruler, Selection, Session, render_colors};
+use crate::session::{HintAction, HintItem, HintMode, Hints, Peek, Ruler, Selection, Session, TextPos, render_colors};
 use crate::store::{self, Bookmark, Global, Highlight};
 use crate::ui::picker::{PickData, PickItem, Picker, PickerEvent, PickerKind};
 use crate::ui::style;
@@ -35,12 +35,18 @@ impl Mode {
 
 #[derive(Clone, Debug)]
 pub enum PromptKind {
-    Search { backward: bool },
+    Search {
+        backward: bool,
+    },
     GotoPage,
     CommandArg(String),
     Lua(FnId),
     Bookmark,
     Annotate,
+    /// The password for a protected document (the open request waiting for it); the text is masked.
+    Password(crate::loader::Request),
+    /// The note of an existing highlight.
+    HighlightNote(usize),
 }
 
 pub struct Prompt {
@@ -63,6 +69,8 @@ pub struct TextPanel {
     pub visible: bool,
 }
 
+/// The whole application: configuration, key maps, the Lua runtime, the open documents (tabs), and the overlays
+/// (picker, prompt, toasts). Every action runs as a named command through `run_line`.
 pub struct App {
     pub ctx: egui::Context,
     pub cfg: Config,
@@ -89,6 +97,20 @@ pub struct App {
     /// Nesting depth of `process_effects` (scripts calling commands calling scripts).
     pub effect_depth: u32,
     pub quit_emitted: bool,
+    /// Collects command output (e.g. `lua` results) while a remote command runs, for the client to print.
+    pub remote_out: Option<String>,
+    /// The latest selection and when it changed, for the debounced `selection_done` hook.
+    pub selection_settling: Option<(String, Instant)>,
+    pub dialogs: crate::dialogs::Dialogs,
+    /// Open documents in tab order; the active one's slot is `Tab::Active` and its session is `doc`.
+    pub tabs: Vec<crate::tabs::Tab>,
+    pub active_tab: usize,
+    /// Recently closed tabs, newest last.
+    pub closed_tabs: Vec<PathBuf>,
+    /// Documents being opened in the background.
+    pub loader: crate::loader::Loader,
+    /// The file being opened into the active tab while `doc` is empty (a restored tab shown before it's read).
+    pub active_pending: Option<PathBuf>,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -129,9 +151,13 @@ fn build_keymaps(cfg: &Config, toasts: &mut Vec<Toast>) -> HashMap<String, ModeM
     maps
 }
 
-fn warn_unknown_settings(toasts: &mut Vec<Toast>, unknown: &[String]) {
+fn warn_unknown_settings(toasts: &mut Vec<Toast>, cfg: &Config, unknown: &[String]) {
     if !unknown.is_empty() {
         notify_into(toasts, format!("config.toml: unknown setting {}", unknown.join(", ")), Level::Warn);
+    }
+    let bad = cfg.problems();
+    if !bad.is_empty() {
+        notify_into(toasts, format!("config.toml: ignored {}", bad.join(", ")), Level::Warn);
     }
 }
 
@@ -180,12 +206,12 @@ fn hint_labels(n: usize, chars: &str) -> Vec<String> {
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>) -> Self {
         let ctx = cc.egui_ctx.clone();
         let mut toasts = Vec::new();
         let cfg = match Config::load() {
             Ok((cfg, unknown)) => {
-                warn_unknown_settings(&mut toasts, &unknown);
+                warn_unknown_settings(&mut toasts, &cfg, &unknown);
                 cfg
             }
             Err(e) => {
@@ -221,6 +247,14 @@ impl App {
             ipc: None,
             effect_depth: 0,
             quit_emitted: false,
+            remote_out: None,
+            selection_settling: None,
+            dialogs: crate::dialogs::Dialogs::new(),
+            tabs: Vec::new(),
+            active_tab: 0,
+            closed_tabs: Vec::new(),
+            loader: Default::default(),
+            active_pending: None,
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -235,11 +269,27 @@ impl App {
         }
         close_on_signals(&app.ctx);
         app.load_script();
-        match path {
-            Some(p) => app.open(&p),
-            None => app.open_recent_picker(),
-        }
+        let wake = app.ctx.clone();
+        crate::open_events::set_waker(move || wake.request_repaint());
+        // Files from Finder arrive as an Apple Event while the app starts up.
+        let mut files = files;
+        files.extend(crate::open_events::take());
+        app.open_startup_files(files);
         app
+    }
+
+    /// The last session's tabs (if `restore_tabs`), then the files given, each in its own tab. With neither,
+    /// the recent list.
+    pub fn open_startup_files(&mut self, files: Vec<PathBuf>) {
+        if self.cfg.general.restore_tabs {
+            self.restore_tabs();
+        }
+        for f in &files {
+            self.open_in_new_tab(f);
+        }
+        if self.doc.is_none() && self.prompt.is_none() && self.loader.is_idle() {
+            self.open_recent_picker();
+        }
     }
 
     pub fn notify(&mut self, text: impl Into<String>) {
@@ -302,8 +352,8 @@ impl App {
     pub fn reload_config(&mut self) {
         match Config::load() {
             Ok((cfg, unknown)) => {
+                warn_unknown_settings(&mut self.toasts, &cfg, &unknown);
                 self.cfg = cfg;
-                warn_unknown_settings(&mut self.toasts, &unknown);
             }
             Err(e) => {
                 notify_into(&mut self.toasts, format!("config: {e:#}"), Level::Error);
@@ -315,12 +365,13 @@ impl App {
         style::apply(&self.ctx, &self.theme, &self.cfg.general);
         self.keymaps = build_keymaps(&self.cfg, &mut self.toasts);
         self.show_statusbar = self.cfg.general.statusbar;
-        if let Some(d) = &mut self.doc {
-            d.pool.set_colors(render_colors(&self.theme));
-            d.view.set_gap(self.cfg.general.page_gap);
+        let (colors, gap) = (render_colors(&self.theme), self.cfg.general.page_gap);
+        self.for_each_session(|d| {
+            d.pool.set_colors(colors);
+            d.view.set_gap(gap);
             d.textures.clear();
             d.tex_bytes = 0;
-        }
+        });
         self.load_script();
         self.sync_script_doc();
         self.notify("Configuration reloaded");
@@ -330,26 +381,18 @@ impl App {
     // Documents
 
     pub fn open(&mut self, path: &Path) {
-        if let Some(d) = &mut self.doc {
-            d.save_state();
-        }
-        match Session::open(path, &self.cfg, &self.theme, &self.ctx) {
-            Ok(s) => {
-                self.global.touch_recent(&s.path, &s.title, s.state.pos.map(|p| p.page).unwrap_or(0));
-                self.global.save();
-                self.ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} — {}", s.title, config::APP_NAME)));
-                self.doc = Some(s);
-                self.mode = Mode::Normal;
-                self.picker = None;
-                self.sync_script_doc();
-                let p = self.doc.as_ref().map(|d| d.path.to_string_lossy().to_string()).unwrap_or_default();
-                self.emit("open", p);
-            }
-            Err(e) => notify_into(&mut self.toasts, format!("{}: {e:#}", path.display()), Level::Error),
+        self.open_with_password(path, None);
+    }
+
+    /// Open a document in the current tab (read in the background); a protected one asks for its password.
+    pub fn open_with_password(&mut self, path: &Path, password: Option<String>) {
+        // Already open in another tab: show that one.
+        if !self.switch_if_open(path) {
+            self.request_open(path, password, crate::loader::Target::Current, None);
         }
     }
 
-    fn sync_script_doc(&self) {
+    pub(crate) fn sync_script_doc(&self) {
         if let Some(s) = &self.script {
             s.set_doc(self.doc.as_ref().map(|d| d.backend.clone()));
         }
@@ -361,6 +404,7 @@ impl App {
             let page = d.view.current_page();
             self.global.touch_recent(&d.path.clone(), &d.title.clone(), page);
         }
+        self.save_tabs();
         self.global.save();
     }
 
@@ -391,7 +435,8 @@ impl App {
     pub fn snapshot(&mut self) -> Snapshot {
         let mode = self.state_mode().to_string();
         let theme = self.theme.name.clone();
-        let Some(d) = &mut self.doc else { return Snapshot { mode, theme, ..Default::default() } };
+        let (tab, tab_count) = (if self.doc.is_some() { self.active_tab + 1 } else { 0 }, self.tabs.len());
+        let Some(d) = &mut self.doc else { return Snapshot { mode, theme, tab, tab_count, ..Default::default() } };
         Snapshot {
             path: d.path.to_string_lossy().to_string(),
             title: d.title.clone(),
@@ -405,6 +450,8 @@ impl App {
             theme,
             outline: d.outline.clone(),
             highlights: d.state.highlights.iter().map(|h| (h.page, h.text.clone(), h.color.clone(), h.note.clone())).collect(),
+            tab,
+            tab_count,
         }
     }
 
@@ -427,7 +474,24 @@ impl App {
         }
     }
 
+    /// Fire `selection_done` once the selection has stopped changing for a moment (for slow handlers).
+    pub fn settle_selection(&mut self) {
+        const SETTLE: Duration = Duration::from_millis(400);
+        let Some((text, at)) = self.selection_settling.clone() else { return };
+        if self.drag_anchor.is_some() || at.elapsed() < SETTLE {
+            self.ctx.request_repaint_after(SETTLE.saturating_sub(at.elapsed()));
+            return;
+        }
+        self.selection_settling = None;
+        if self.doc.as_mut().and_then(|d| d.selection_text()).as_deref() == Some(text.as_str()) {
+            self.emit("selection_done", text);
+        }
+    }
+
     pub fn emit(&mut self, event: &str, arg: String) {
+        if event == "selection" && self.script.as_ref().is_some_and(|s| s.has_hook("selection_done")) {
+            self.selection_settling = Some((arg.clone(), Instant::now()));
+        }
         if self.script.as_ref().is_some_and(|s| s.has_hook(event)) {
             self.with_script(|s| s.emit(event, arg));
         }
@@ -499,7 +563,7 @@ impl App {
                 self.lua_picker_cb = Some(callback);
             }
             Effect::Clipboard(text) => self.ctx.copy_text(text),
-            Effect::Open(p) => self.open(&p),
+            Effect::Open(p, password) => self.open_with_password(&p, password),
             Effect::SetOption(k, v) => self.set_option(&k, &v),
         }
     }
@@ -514,6 +578,12 @@ impl App {
             "scroll_step" => self.cfg.general.scroll_step = f.unwrap_or(self.cfg.general.scroll_step),
             "zoom_step" => self.cfg.general.zoom_step = f.unwrap_or(self.cfg.general.zoom_step).max(1.01),
             "hint_chars" => self.cfg.general.hint_chars = value.to_string(),
+            "ruler_dim" | "hint_dim" => {
+                let Some(f) = f.filter(|f| (0.0..=1.0).contains(f)) else {
+                    return self.warn(format!("{key}: '{value}' is not a number from 0 to 1"));
+                };
+                if key == "ruler_dim" { self.cfg.general.ruler_dim = Some(f) } else { self.cfg.general.hint_dim = Some(f) }
+            }
             "theme" => self.set_theme(value),
             "page_mode" => self.run_line(&format!("page_mode {value}"), None),
             "page_gap" => {
@@ -578,13 +648,14 @@ impl App {
 
     fn apply_theme(&mut self) {
         style::apply(&self.ctx, &self.theme, &self.cfg.general);
-        if let Some(d) = &mut self.doc {
-            d.pool.set_colors(render_colors(&self.theme));
+        let colors = render_colors(&self.theme);
+        self.for_each_session(|d| {
+            d.pool.set_colors(colors);
             if d.page_mode != PageMode::Normal {
                 d.textures.clear();
                 d.tex_bytes = 0;
             }
-        }
+        });
     }
 
     // ------------------------------------------------------------------
@@ -596,8 +667,10 @@ impl App {
             Outcome::Pending => {}
             Outcome::Run { command, count } => self.run_line(&command, count),
             Outcome::Unbound(seq) => {
-                // Visual mode falls back to normal-mode bindings for navigation.
+                // Visual mode falls back to normal-mode bindings for navigation. `Esc` after a prefix (`h`, then
+                // changing your mind) just cancels it.
                 if self.mode == Mode::Visual
+                    && !seq.contains("<Esc>")
                     && let Ok(chords) = keymap::parse_seq(&seq)
                 {
                     let normal = self.keymaps.get("normal").cloned().unwrap_or_default();
@@ -618,7 +691,7 @@ impl App {
         if let Some(Outcome::Run { command, count }) = self.disp.tick(&map, timeout) {
             self.run_line(&command, count);
         }
-        if let Some(d) = self.disp.deadline(timeout) {
+        if let Some(d) = self.disp.deadline(&map, timeout) {
             self.ctx.request_repaint_after(d + Duration::from_millis(5));
         }
     }
@@ -646,8 +719,8 @@ impl App {
         if name.is_empty() {
             return;
         }
-        // `:42` goes to page 42, like vim.
-        if name.chars().all(|c| c.is_ascii_digit()) {
+        // `:42` goes to page 42, like vim; `:p42` (or `:pxii`) to the page labeled 42, the printed number.
+        if name.chars().all(|c| c.is_ascii_digit()) || is_label_jump(name) {
             self.goto_page_str(name);
             return;
         }
@@ -663,15 +736,42 @@ impl App {
         self.run_builtin(name, args, count);
     }
 
+    /// Run a command line from `--remote`. `;` separates commands, except inside Lua code. The reply carries
+    /// the output, or the warnings and errors the commands raised (they still show as toasts too).
+    pub fn run_remote(&mut self, line: &str) -> crate::ipc::Reply {
+        let start = Instant::now();
+        self.remote_out = Some(String::new());
+        // `;` separates commands, except in Lua code and in paths.
+        let whole = ["lua", "open_file", "new_tab", "export_highlights", "screenshot", "open_url"];
+        if whole.contains(&commands::split(line).0) {
+            self.run_line(line, None);
+        } else {
+            for cmd in line.split(';') {
+                self.run_line(cmd, None);
+            }
+        }
+        self.finish_loading_now();
+        let out = self.remote_out.take().unwrap_or_default();
+        let errors: Vec<&str> =
+            self.toasts.iter().filter(|t| t.level != Level::Info && t.born >= start).map(|t| t.text.as_str()).collect();
+        if errors.is_empty() { crate::ipc::Reply::Ok(out) } else { crate::ipc::Reply::Err(errors.join("; ")) }
+    }
+
     fn need_doc(&mut self) -> bool {
         if self.doc.is_none() {
-            self.notify("No document open — press o to open one");
+            let msg = "No document open — press oo to open one";
+            // A remote caller needs to know the command did nothing.
+            if self.remote_out.is_some() {
+                self.warn(msg)
+            } else {
+                self.notify(msg)
+            }
             return false;
         }
         true
     }
 
-    fn ask(&mut self, label: &str, kind: PromptKind, initial: String) {
+    pub(crate) fn ask(&mut self, label: &str, kind: PromptKind, initial: String) {
         let origin = self.doc.as_ref().map(|d| d.view.pos_at(0.0));
         self.prompt = Some(Prompt { label: label.to_string(), text: initial, kind, origin, history_idx: None });
     }
@@ -691,7 +791,54 @@ impl App {
                 let p = shellexpand(args);
                 return self.open(&p);
             }
+            "open_dialog" => return self.open_dialog(false),
+            "new_tab" => {
+                if args.is_empty() {
+                    return self.open_dialog(true);
+                }
+                let p = shellexpand(args);
+                return self.open_in_new_tab(&p);
+            }
+            "close_tab" => {
+                let i = if args.is_empty() { self.active_tab } else { args.parse::<usize>().unwrap_or(0).wrapping_sub(1) };
+                if i >= self.tabs.len() {
+                    return self.warn(format!("No tab '{args}'"));
+                }
+                return self.close_tab(i);
+            }
+            "next_tab" | "prev_tab" => {
+                let n = self.tabs.len();
+                if n > 1 {
+                    let step = count.unwrap_or(1) as usize % n;
+                    let i = if name == "next_tab" { (self.active_tab + step) % n } else { (self.active_tab + n - step) % n };
+                    self.switch_tab(i);
+                }
+                return;
+            }
+            "goto_tab" => {
+                let Some(i) = args.parse::<usize>().ok().or(count.map(|c| c as usize)).and_then(|i| i.checked_sub(1)) else {
+                    return self.warn("goto_tab: which tab? (1, 2, …)");
+                };
+                if i >= self.tabs.len() {
+                    return self.warn(format!("No tab {}", i + 1));
+                }
+                return self.switch_tab(i);
+            }
+            "tabs" => return self.open_tabs_picker(),
+            "reopen_tab" => return self.reopen_tab(),
             "recent_files" => return self.open_recent_picker(),
+            "alternate_file" => {
+                // The document opened before this one, like vim's alternate file.
+                let current = self.doc.as_ref().map(|d| d.path.clone());
+                match self.global.recent.iter().find(|r| Some(&r.path) != current.as_ref() && r.path.exists()) {
+                    Some(r) => {
+                        let path = r.path.clone();
+                        self.open(&path);
+                    }
+                    None => self.notify("No other recent document"),
+                }
+                return;
+            }
             "quit" | "q" => {
                 self.save_all();
                 self.emit_quit();
@@ -727,6 +874,11 @@ impl App {
                 }
                 return;
             }
+            "focus_window" => {
+                self.ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+                return;
+            }
             "fullscreen" => {
                 self.fullscreen = !self.fullscreen;
                 self.ctx.send_viewport_cmd(egui::ViewportCommand::Fullscreen(self.fullscreen));
@@ -742,7 +894,10 @@ impl App {
                 let res = s.run_code(args);
                 self.process_effects();
                 match res {
-                    Ok(out) if !out.is_empty() && out != "nil" => self.notify(out),
+                    Ok(out) if !out.is_empty() && out != "nil" => match &mut self.remote_out {
+                        Some(buf) => buf.push_str(&out),
+                        None => self.notify(out),
+                    },
                     Ok(_) => {}
                     Err(e) => notify_into(&mut self.toasts, e, Level::Error),
                 }
@@ -773,9 +928,27 @@ impl App {
                 return self.delete_mark(c);
             }
             "echo" => return self.notify(args.to_string()),
+            "feed_keys" => {
+                // Keys as if typed, in vim notation (`gg`, `<C-d>`, `oo`); a key prefix stays pending as usual.
+                match keymap::parse_seq(args) {
+                    Ok(chords) => {
+                        for chord in chords {
+                            if !self.dispatch_chord(chord) {
+                                break;
+                            }
+                        }
+                    }
+                    Err(e) => self.warn(format!("feed_keys: {e}")),
+                }
+                return;
+            }
             "open_url" => return self.open_link(args),
             "screenshot" => {
-                let path = if args.is_empty() { PathBuf::from("folio.png") } else { shellexpand(args) };
+                if args.is_empty() {
+                    let name = format!("{}.png", config::APP_NAME);
+                    return self.save_dialog(&name, ("PNG image", "png"), crate::dialogs::Purpose::Screenshot);
+                }
+                let path = shellexpand(args);
                 let cb = egui::ScreenshotCallback::new(move |img| {
                     if let Err(e) = save_png(&path, &img) {
                         eprintln!("folio: screenshot failed: {e}");
@@ -955,11 +1128,14 @@ impl App {
                 }
                 if c.is_ascii_uppercase() {
                     if let Some((path, pos)) = self.global.marks.get(&c).cloned() {
-                        if path != d.path {
-                            self.open(&path);
-                        }
-                        if let Some(d) = &mut self.doc {
+                        if path == d.path {
                             d.jump(pos, 0.0, false);
+                        } else if self.switch_if_open(&path) {
+                            if let Some(d) = &mut self.doc {
+                                d.jump(pos, 0.0, false);
+                            }
+                        } else {
+                            self.request_open(&path, None, crate::loader::Target::Current, Some(pos));
                         }
                     } else {
                         self.notify(format!("Mark '{c}' not set"));
@@ -1087,6 +1263,20 @@ impl App {
                 self.add_highlight(color, note);
             }
             "highlights" => self.open_highlights(),
+            "edit_highlight" => self.start_highlight_hints(),
+            "delete_highlight" | "highlight_color" | "highlight_note" => {
+                let (name, args) = (name.to_string(), args.to_string());
+                self.highlight_command(&name, &args);
+            }
+            "export_highlights" if !args.is_empty() => {
+                let path = shellexpand(args);
+                self.write_highlights(&path);
+            }
+            "save_highlights" => {
+                let name = format!("{}.md", d.path.file_stem().map(|s| s.to_string_lossy()).unwrap_or_default());
+                let source = d.path.clone();
+                self.save_dialog(&name, ("Markdown", "md"), crate::dialogs::Purpose::ExportHighlights(source));
+            }
             "export_highlights" => {
                 let md = export_markdown(d);
                 self.ctx.copy_text(md.clone());
@@ -1107,6 +1297,22 @@ impl App {
                     d.ruler = Some(Ruler { page: pos.page, line });
                 }
             }
+            "copy_path" => {
+                let p = d.path.to_string_lossy().to_string();
+                self.ctx.copy_text(p.clone());
+                self.notify(format!("Copied {p}"));
+            }
+            "reveal_file" => reveal_in_file_manager(&d.path),
+            "rotate" => {
+                let deg = if args.is_empty() { 90 } else { args.parse::<i32>().unwrap_or(0) };
+                if deg % 90 != 0 || deg == 0 {
+                    return self.warn(format!("rotate: '{args}' isn't a multiple of 90 degrees"));
+                }
+                let deg = deg * count.unwrap_or(1).max(1) as i32;
+                if let Err(e) = d.rotate(deg) {
+                    notify_into(&mut self.toasts, format!("rotate failed: {e:#}"), Level::Error);
+                }
+            }
             "reload" => {
                 if let Err(e) = d.reload() {
                     notify_into(&mut self.toasts, format!("reload failed: {e:#}"), Level::Error);
@@ -1121,6 +1327,63 @@ impl App {
         }
         if let Some(d) = &mut self.doc {
             d.dirty = true;
+        }
+    }
+
+    /// The system's open dialog, starting in the current document's folder.
+    pub fn open_dialog(&mut self, new_tab: bool) {
+        if self.dialogs.is_open() {
+            return self.notify("A file dialog is already open");
+        }
+        let dir = self.doc.as_ref().and_then(|d| d.path.parent().map(Path::to_path_buf));
+        let wake = self.ctx.clone();
+        self.dialogs.pick_pdf(dir.as_deref(), new_tab, move || wake.request_repaint());
+    }
+
+    fn save_dialog(&mut self, name: &str, kind: (&str, &str), purpose: crate::dialogs::Purpose) {
+        if self.dialogs.is_open() {
+            return self.notify("A file dialog is already open");
+        }
+        let dir = self.doc.as_ref().and_then(|d| d.path.parent().map(Path::to_path_buf));
+        let wake = self.ctx.clone();
+        self.dialogs.save(dir.as_deref(), name, kind, purpose, move || wake.request_repaint());
+    }
+
+    /// Act on paths chosen in file dialogs.
+    pub fn poll_dialogs(&mut self) {
+        use crate::dialogs::Purpose;
+        let chosen: Vec<_> = self.dialogs.rx.try_iter().collect();
+        for (purpose, path) in chosen {
+            match purpose {
+                Purpose::Open { new_tab: true } => self.open_in_new_tab(&path),
+                Purpose::Open { new_tab: false } => self.open(&path),
+                Purpose::ExportHighlights(source) => self.write_highlights_of(&source, &path),
+                Purpose::Screenshot => {
+                    let p = path.to_string_lossy().to_string();
+                    self.run_builtin("screenshot", &p, None);
+                }
+            }
+        }
+    }
+
+    fn write_highlights(&mut self, path: &Path) {
+        if let Some(source) = self.doc.as_ref().map(|d| d.path.clone()) {
+            self.write_highlights_of(&source, path);
+        }
+    }
+
+    /// Write the highlights of the open document at `source` (active or in a background tab) to `path`.
+    fn write_highlights_of(&mut self, source: &Path, path: &Path) {
+        let mut md = None;
+        self.for_each_session(|d| {
+            if d.path == source {
+                md = Some(export_markdown(d));
+            }
+        });
+        let Some(md) = md else { return self.warn(format!("{} isn't open any more", tilde(source))) };
+        match std::fs::write(path, md) {
+            Ok(()) => self.notify(format!("Highlights saved to {}", tilde(path))),
+            Err(e) => self.warn(format!("Couldn't write {}: {e}", tilde(path))),
         }
     }
 
@@ -1163,10 +1426,12 @@ impl App {
     fn goto_page_str(&mut self, s: &str) {
         let Some(d) = &mut self.doc else { return };
         let s = s.trim();
+        let by_label = |label: &str| (0..d.view.page_count()).find(|&i| d.backend.page_label(i).as_deref() == Some(label));
         let page = match s.parse::<usize>() {
             Ok(n) => n.checked_sub(1),
+            Err(_) if is_label_jump(s) => by_label(&s[1..]),
             // Page labels, e.g. roman numerals in front matter.
-            Err(_) => (0..d.view.page_count()).find(|&i| d.backend.page_label(i).as_deref() == Some(s)),
+            Err(_) => by_label(s),
         };
         match page {
             Some(p) if p < d.view.page_count() => d.jump(DocPos { page: p, y: 0.0 }, 0.0, false),
@@ -1174,28 +1439,28 @@ impl App {
         }
     }
 
+    /// Highlight the selection: one highlight per page it covers, sharing the color, note and time.
     fn add_highlight(&mut self, color: String, note: String) {
         let Some(d) = &mut self.doc else { return };
         let Some(sel) = d.selection else { return };
-        let t = d.page_text(sel.page);
-        let (s, e) = sel.range();
-        let text = t.span_text(s, e);
-        let rects = t.span_rects(s, e).into_iter().map(Into::into).collect();
-        d.state.highlights.push(Highlight {
-            page: sel.page,
-            start: s,
-            end: e,
-            rects,
-            text: text.clone(),
-            color,
-            note,
-            created: store::now(),
-        });
+        let (a, b) = sel.bounds();
+        let created = store::now();
+        let mut texts = Vec::new();
+        for page in a.page..=b.page {
+            let t = d.page_text(page);
+            let Some((s, e)) = sel.range_on(page, t.chars.len()).filter(|(s, e)| e > s) else { continue };
+            let text = t.span_text(s, e);
+            let rects = t.span_rects(s, e).into_iter().map(Into::into).collect();
+            texts.push(text.clone());
+            // The note goes on the first piece only.
+            let note = if texts.len() == 1 { note.clone() } else { String::new() };
+            d.state.highlights.push(Highlight { page, start: s, end: e, rects, text, color: color.clone(), note, created });
+        }
         d.state.highlights.sort_by_key(|h| (h.page, h.start));
         d.save_state();
         d.selection = None;
         self.mode = Mode::Normal;
-        self.emit("highlight", text);
+        self.emit("highlight", texts.join(" "));
     }
 
     fn visual_start_is_obvious(&self) -> bool {
@@ -1279,13 +1544,13 @@ impl App {
         if let Some(h) = d.search.as_ref().and_then(|s| s.current.map(|c| s.hits[c].clone()))
             && h.rects.first().is_some_and(|r| d.view.is_visible(h.page, r.y0, r.y1))
         {
-            d.selection = Some(Selection { page: h.page, anchor: h.start, cursor: h.end.saturating_sub(1) });
+            d.selection = Some(Selection::on_page(h.page, h.start, h.end.saturating_sub(1)));
             return true;
         }
         if let Some(r) = d.ruler {
             let t = d.page_text(r.page);
             if let Some(&(s, e)) = t.lines().get(r.line) {
-                d.selection = Some(Selection { page: r.page, anchor: s, cursor: e.saturating_sub(1).max(s) });
+                d.selection = Some(Selection::on_page(r.page, s, e.saturating_sub(1).max(s)));
                 return true;
             }
         }
@@ -1294,7 +1559,7 @@ impl App {
             let top = d.view.pos_at(0.0);
             let min_y = if page == top.page { top.y } else { 0.0 };
             if let Some(&(s, e)) = t.words().iter().find(|&&(s, _)| t.rects[s].y0 >= min_y) {
-                d.selection = Some(Selection { page, anchor: s, cursor: e - 1 });
+                d.selection = Some(Selection::on_page(page, s, e - 1));
                 return true;
             }
         }
@@ -1344,7 +1609,7 @@ impl App {
         self.show_hints(mode, items, "No references on screen");
     }
 
-    fn show_hints(&mut self, mode: HintMode, mut items: Vec<HintItem>, empty: &str) {
+    pub(crate) fn show_hints(&mut self, mode: HintMode, mut items: Vec<HintItem>, empty: &str) {
         if items.is_empty() {
             return self.notify(empty);
         }
@@ -1371,7 +1636,7 @@ impl App {
         }
         if matches.len() == 1 && matches[0].label == h.typed {
             let item = matches[0].clone();
-            let mode = if peek_override && h.mode != HintMode::Select { HintMode::Peek } else { h.mode };
+            let mode = if peek_override && matches!(h.mode, HintMode::Jump | HintMode::Peek) { HintMode::Peek } else { h.mode };
             d.hints = None;
             self.activate_hint(item, mode);
         }
@@ -1397,8 +1662,9 @@ impl App {
                 let page = item.page;
                 self.start_word_hints(page, line);
             }
+            HintAction::Highlight(i) => self.open_highlight_menu(i),
             HintAction::Word(start, end) => {
-                d.selection = Some(Selection { page: item.page, anchor: start, cursor: end.saturating_sub(1) });
+                d.selection = Some(Selection::on_page(item.page, start, end.saturating_sub(1)));
                 self.mode = Mode::Visual;
                 if let Some(t) = self.doc.as_mut().and_then(|d| d.selection_text()) {
                     self.emit("selection", t);
@@ -1556,9 +1822,9 @@ impl App {
             })
             .collect();
         if items.is_empty() {
-            return self.notify("No highlights yet (v to select, H to highlight)");
+            return self.notify("No highlights yet (select with v, then H and a color key)");
         }
-        self.picker = Some(Picker::new(PickerKind::Highlights, "Highlights  ·  Ctrl-D deletes", items));
+        self.picker = Some(Picker::new(PickerKind::Highlights, "Highlights  ·  Ctrl-E edits  ·  Ctrl-D deletes", items));
     }
 
     fn open_marks(&mut self) {
@@ -1579,6 +1845,7 @@ impl App {
     }
 
     pub fn open_recent_picker(&mut self) {
+        let missing = self.global.recent.iter().filter(|r| !r.path.exists()).count();
         let items: Vec<PickItem> = self
             .global
             .recent
@@ -1595,7 +1862,12 @@ impl App {
             }
             return;
         }
-        self.picker = Some(Picker::new(PickerKind::Recent, "Recent", items));
+        // Files that moved or were deleted stay in the list (they may come back, e.g. on a mounted drive).
+        let title = match missing {
+            0 => "Recent  ·  Ctrl-D removes".to_string(),
+            n => format!("Recent  ·  Ctrl-D removes  ·  {n} missing file{} hidden", if n == 1 { "" } else { "s" }),
+        };
+        self.picker = Some(Picker::new(PickerKind::Recent, title, items));
     }
 
     fn open_file_picker(&mut self) {
@@ -1658,6 +1930,26 @@ impl App {
                     }
                     return;
                 }
+                if let (PickerKind::Tabs, Some(PickData::Tab(i))) = (kind, &cur) {
+                    let selected = p.selected;
+                    self.close_tab(*i);
+                    self.open_tabs_picker();
+                    if let Some(p) = &mut self.picker {
+                        p.selected = selected.min(p.filtered.len().saturating_sub(1));
+                    }
+                    return;
+                }
+                if let (PickerKind::Recent, Some(PickData::Path(path))) = (kind, &cur) {
+                    let selected = p.selected;
+                    self.global.recent.retain(|r| &r.path != path);
+                    self.global.save();
+                    self.picker = None;
+                    self.open_recent_picker();
+                    if let Some(p) = &mut self.picker {
+                        p.selected = selected.min(p.filtered.len().saturating_sub(1));
+                    }
+                    return;
+                }
                 let Some(d) = &mut self.doc else { return };
                 match (kind, cur) {
                     (PickerKind::Highlights, Some(PickData::Highlight(i))) => {
@@ -1675,7 +1967,25 @@ impl App {
                     _ => {}
                 }
             }
-            PickerEvent::Accept => {
+            PickerEvent::Edit => {
+                if let (PickerKind::Highlights, Some(PickData::Highlight(i))) = (p.kind, p.current().map(|i| i.data.clone())) {
+                    self.picker = None;
+                    self.open_highlight_menu(i);
+                }
+            }
+            PickerEvent::AcceptAlt if matches!(p.kind, PickerKind::Files | PickerKind::Recent) => {
+                let path = match p.current().map(|i| i.data.clone()) {
+                    Some(PickData::Path(path)) if path.is_file() => path,
+                    _ => shellexpand(&p.query),
+                };
+                if path.is_file() {
+                    self.picker = None;
+                    self.open_in_new_tab(&path);
+                } else if p.kind == PickerKind::Files {
+                    self.picker_event(PickerEvent::Accept);
+                }
+            }
+            PickerEvent::Accept | PickerEvent::AcceptAlt => {
                 let p = self.picker.take().unwrap();
                 let query = p.query.trim().to_string();
                 let cur = p.current().cloned();
@@ -1750,6 +2060,8 @@ impl App {
             }
             PickData::Mark(c) => self.run_line(&format!("goto_mark {c}"), None),
             PickData::Theme(t) => self.set_theme(&t),
+            PickData::Tab(i) => self.switch_tab(i),
+            PickData::HighlightAction(i, action) => self.highlight_action(i, action),
             PickData::Lua(..) => {} // handled in picker_event, which still has the label
             PickData::None => {}
         }
@@ -1807,6 +2119,16 @@ impl App {
             PromptKind::Bookmark => {
                 self.run_line(&format!("add_bookmark {}", if text.is_empty() { "Bookmark" } else { &text }), None)
             }
+            PromptKind::HighlightNote(i) => self.edit_highlight(i, |h| Some(store::Highlight { note: text, ..h })),
+            PromptKind::Password(req) => {
+                if text.is_empty() {
+                    if req.target == crate::loader::Target::Lazy {
+                        self.drop_lazy_tab(&req.path);
+                    }
+                } else {
+                    self.request_open(&req.path, Some(p.text), req.target, req.then);
+                }
+            }
             PromptKind::Annotate => {
                 let color = self.theme.highlights.get(1).map(|h| h.0.clone()).unwrap_or_else(|| "yellow".into());
                 self.add_highlight(color, text);
@@ -1820,6 +2142,12 @@ impl App {
             // Tell the script the user canceled.
             self.with_script(|s| s.call_fn(cb, ()));
             return;
+        }
+        // No password for a restored tab: close it rather than leave it waiting.
+        if let PromptKind::Password(req) = &p.kind
+            && req.target == crate::loader::Target::Lazy
+        {
+            return self.drop_lazy_tab(&req.path.clone());
         }
         if let PromptKind::Search { .. } = p.kind
             && let Some(d) = &mut self.doc
@@ -1946,84 +2274,110 @@ fn move_ruler(d: &mut Session, delta: i64, animate: bool) {
     }
 }
 
+/// The next page after `page` (or before it, going back) that has text.
+fn text_page(d: &mut Session, page: usize, forward: bool) -> Option<usize> {
+    let mut p = page;
+    loop {
+        p = if forward { p + 1 } else { p.checked_sub(1)? };
+        if p >= d.view.page_count() {
+            return None;
+        }
+        if !d.page_text(p).chars.is_empty() {
+            return Some(p);
+        }
+    }
+}
+
+/// Move the selection's cursor. Motions continue onto the next or previous page at a page's end.
 fn extend_selection(d: &mut Session, cmd: &str) -> bool {
     let Some(mut sel) = d.selection else { return false };
-    let t = d.page_text(sel.page);
+    let page = sel.cursor.page;
+    let t = d.page_text(page);
     let n = t.chars.len();
     if n == 0 {
         return false;
     }
-    let cur = sel.cursor.min(n - 1);
+    let cur = sel.cursor.idx.min(n - 1);
     let words = t.words();
     let lines = t.lines();
     let line_of = |i: usize| lines.iter().position(|&(s, e)| i >= s && i < e.max(s + 1)).unwrap_or(0);
-    match cmd {
-        "sel_word_next" => {
-            if let Some(&(_, e)) = words.iter().find(|&&(_, e)| e - 1 > cur) {
-                sel.cursor = e - 1;
-            }
-        }
-        "sel_word_prev" => {
-            if let Some(&(s, _)) = words.iter().rev().find(|&&(s, _)| s < cur) {
-                sel.cursor = s;
-            }
-        }
-        "sel_char_next" => {
-            let mut i = cur + 1;
-            while i < n && t.chars[i] == '\n' {
-                i += 1;
-            }
-            if i < n {
-                sel.cursor = i;
-            }
-        }
-        "sel_char_prev" => {
-            let mut i = cur;
-            while i > 0 {
-                i -= 1;
-                if t.chars[i] != '\n' {
-                    sel.cursor = i;
-                    break;
-                }
-            }
-        }
+    let at = |page: usize, idx: usize| TextPos { page, idx };
+    // The closest char to `x` on a line.
+    let nearest = |t: &PageText, (s, e): (usize, usize), x: f32| {
+        (s..e)
+            .min_by(|&a, &b| {
+                (t.rects[a].x1 - x).abs().partial_cmp(&(t.rects[b].x1 - x).abs()).unwrap_or(std::cmp::Ordering::Equal)
+            })
+            .unwrap_or(s)
+    };
+    let moved = match cmd {
+        "sel_word_next" => match words.iter().find(|&&(_, e)| e - 1 > cur) {
+            Some(&(_, e)) => Some(at(page, e - 1)),
+            None => text_page(d, page, true).and_then(|p| d.page_text(p).words().first().map(|&(_, e)| at(p, e - 1))),
+        },
+        "sel_word_prev" => match words.iter().rev().find(|&&(s, _)| s < cur) {
+            Some(&(s, _)) => Some(at(page, s)),
+            None => text_page(d, page, false).and_then(|p| d.page_text(p).words().last().map(|&(s, _)| at(p, s))),
+        },
+        "sel_char_next" => match (cur + 1..n).find(|&i| t.chars[i] != '\n') {
+            Some(i) => Some(at(page, i)),
+            None => text_page(d, page, true).map(|p| at(p, 0)),
+        },
+        "sel_char_prev" => match (0..cur).rev().find(|&i| t.chars[i] != '\n') {
+            Some(i) => Some(at(page, i)),
+            None => text_page(d, page, false).map(|p| at(p, d.page_text(p).chars.len().saturating_sub(1))),
+        },
         "sel_line_next" | "sel_line_prev" => {
+            let next = cmd == "sel_line_next";
+            let x = t.rects[cur].x1;
             let li = line_of(cur);
-            let target = if cmd == "sel_line_next" { li + 1 } else { li.wrapping_sub(1) };
-            if let Some(&(s, e)) = lines.get(target) {
-                let x = t.rects[cur].x1;
-                let best = (s..e).min_by(|&a, &b| {
-                    (t.rects[a].x1 - x).abs().partial_cmp(&(t.rects[b].x1 - x).abs()).unwrap_or(std::cmp::Ordering::Equal)
-                });
-                sel.cursor = best.unwrap_or(s);
+            let target = if next { li + 1 } else { li.wrapping_sub(1) };
+            match lines.get(target) {
+                Some(&line) => Some(at(page, nearest(&t, line, x))),
+                None => text_page(d, page, next).and_then(|p| {
+                    let pt = d.page_text(p);
+                    let pl = pt.lines();
+                    let line = if next { pl.first() } else { pl.last() };
+                    line.map(|&l| at(p, nearest(&pt, l, x)))
+                }),
             }
         }
-        "sel_line_end" => {
-            if let Some(&(_, e)) = lines.get(line_of(cur)) {
-                sel.cursor = e.saturating_sub(1);
-            }
-        }
-        "sel_line_start" => {
-            if let Some(&(s, _)) = lines.get(line_of(cur)) {
-                sel.cursor = s;
-            }
-        }
+        "sel_line_end" => lines.get(line_of(cur)).map(|&(_, e)| at(page, e.saturating_sub(1))),
+        "sel_line_start" => lines.get(line_of(cur)).map(|&(s, _)| at(page, s)),
         "sel_sentence_next" => {
-            let mut i = cur + 1;
-            while i < n {
-                if matches!(t.chars[i], '.' | '?' | '!') && t.chars.get(i + 1).is_none_or(|c| c.is_whitespace()) {
+            // Up to the next sentence end, looking a couple of pages ahead.
+            let mut found = None;
+            let (mut p, mut from) = (page, cur + 1);
+            for _ in 0..3 {
+                let pt = d.page_text(p);
+                let end = (from..pt.chars.len())
+                    .find(|&i| matches!(pt.chars[i], '.' | '?' | '!') && pt.chars.get(i + 1).is_none_or(|c| c.is_whitespace()));
+                if let Some(i) = end {
+                    found = Some(at(p, i));
                     break;
                 }
-                i += 1;
+                match text_page(d, p, true) {
+                    Some(np) => (p, from) = (np, 0),
+                    None => {
+                        found = Some(at(p, pt.chars.len().saturating_sub(1)));
+                        break;
+                    }
+                }
             }
-            sel.cursor = i.min(n - 1);
+            found
         }
-        "sel_swap" => std::mem::swap(&mut sel.anchor, &mut sel.cursor),
+        "sel_swap" => {
+            std::mem::swap(&mut sel.anchor, &mut sel.cursor);
+            Some(sel.cursor)
+        }
         _ => return false,
+    };
+    if let Some(pos) = moved {
+        sel.cursor = pos;
     }
     d.selection = Some(sel);
-    let r = t.rects[sel.cursor];
-    reveal(d, sel.page, Some(r), true);
+    let r = d.page_text(sel.cursor.page).rects.get(sel.cursor.idx).copied();
+    reveal(d, sel.cursor.page, r, true);
     true
 }
 
@@ -2098,6 +2452,14 @@ fn save_png(path: &Path, img: &egui::ColorImage) -> anyhow::Result<()> {
     Ok(())
 }
 
+/// `p12`, `pxiv`: a jump to the page with that label (the number printed on it).
+fn is_label_jump(s: &str) -> bool {
+    s.strip_prefix('p').is_some_and(|rest| {
+        !rest.is_empty()
+            && (rest.chars().all(|c| c.is_ascii_digit()) || rest.chars().all(|c| "ivxlcdm".contains(c.to_ascii_lowercase())))
+    })
+}
+
 fn is_web_url(s: &str) -> bool {
     let l = s.to_ascii_lowercase();
     ["http://", "https://", "mailto:"].iter().any(|p| l.starts_with(p))
@@ -2115,6 +2477,58 @@ fn open_external(target: &str) {
     if let Err(e) = std::process::Command::new(opener).arg(target).spawn() {
         eprintln!("folio: {opener} failed: {e}");
     }
+}
+
+/// Show a file selected in the desktop's file manager (Finder, Explorer, or the freedesktop `FileManager1`
+/// service; plain `xdg-open` of its folder where that's missing). Runs on a thread: D-Bus can be slow to answer.
+fn reveal_in_file_manager(path: &Path) {
+    use std::process::Command;
+    let path = path.to_path_buf();
+    let reveal = move || {
+        let result = if cfg!(target_os = "macos") {
+            Command::new("open").arg("-R").arg(&path).status().map(drop)
+        } else if cfg!(windows) {
+            explorer_select(&path)
+        } else {
+            let shown = Command::new("dbus-send")
+                .args(["--session", "--print-reply", "--reply-timeout=2000", "--dest=org.freedesktop.FileManager1"])
+                .args(["--type=method_call", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowItems"])
+                .arg(format!("array:string:{}", file_uri(&path)))
+                .arg("string:")
+                .output()
+                .is_ok_and(|o| o.status.success());
+            if shown { Ok(()) } else { Command::new("xdg-open").arg(path.parent().unwrap_or(&path)).status().map(drop) }
+        };
+        if let Err(e) = result {
+            eprintln!("folio: couldn't show {} in the file manager: {e}", path.display());
+        }
+    };
+    let _ = std::thread::Builder::new().name("reveal".into()).spawn(reveal);
+}
+
+/// `explorer /select,PATH`, passed as written: explorer doesn't parse the quoting Rust would add for spaces.
+#[cfg(windows)]
+fn explorer_select(path: &Path) -> std::io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn().map(drop)
+}
+
+#[cfg(not(windows))]
+fn explorer_select(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// A `file://` URI with the path percent-encoded (spaces, `#`, `%` and non-ASCII bytes).
+fn file_uri(path: &Path) -> String {
+    let mut out = String::from("file://");
+    for b in path.to_string_lossy().bytes() {
+        if b.is_ascii_alphanumeric() || b"/-._~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out += &format!("%{b:02X}");
+        }
+    }
+    out
 }
 
 pub fn shellexpand(s: &str) -> PathBuf {
@@ -2164,3 +2578,20 @@ fn close_on_signals(ctx: &egui::Context) {
 
 #[cfg(not(unix))]
 fn close_on_signals(_ctx: &egui::Context) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_uris_are_percent_encoded() {
+        assert_eq!(file_uri(Path::new("/papers/a b#1%.pdf")), "file:///papers/a%20b%231%25.pdf");
+        assert_eq!(file_uri(Path::new("/p/é.pdf")), "file:///p/%C3%A9.pdf");
+    }
+
+    #[test]
+    fn label_jumps() {
+        assert!(is_label_jump("p12") && is_label_jump("pxiv"));
+        assert!(!is_label_jump("p") && !is_label_jump("prev_page") && !is_label_jump("p1x"));
+    }
+}

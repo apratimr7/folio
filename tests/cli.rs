@@ -72,6 +72,8 @@ fn fixture(name: &str) -> String {
 fn version_prints_the_crate_version() {
     assert_eq!(ok(&["--version"]), format!("folio {}\n", env!("CARGO_PKG_VERSION")));
     assert_eq!(ok(&["-V"]), ok(&["--version"]));
+    // Flags after a file name count too (and don't start the GUI).
+    assert_eq!(ok(&["missing.pdf", "--version"]), ok(&["--version"]));
 }
 
 #[test]
@@ -204,6 +206,9 @@ fn debug_findref() {
     ] {
         assert!(out.contains(want), "missing {want:?} in\n{out}");
     }
+    // Equation targets print their line (the number's box sits lower than the line's first glyph).
+    let out = ok(&["--debug", "findref", &fixture("refs.pdf"), "4"]);
+    assert!(out.contains("-> p5 «E = mc2 (2.1)»"), "{out}");
 }
 
 #[test]

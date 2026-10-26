@@ -22,6 +22,8 @@ Most commands take a **count**: `5j` scrolls five steps, `3J` moves three pages,
 | `J` `K` | next / previous page (the first `K` goes to the top of the current page) |
 | `gg` `G` | first / last page; with a count, that page |
 | `gp` or `:42` | go to a page; page labels such as `xii` work too |
+| `:p42` | go to the page *printed* 42 (its label), when the PDF numbers front matter separately |
+| `Ctrl-6` (`Ctrl-^`) | switch to the previously opened document |
 | `t` | fuzzy-search the table of contents; it opens on the current section |
 | `x` | toggle the outline sidebar (click to navigate) |
 
@@ -88,28 +90,36 @@ schemes, paths) aren't opened, since they could launch files or programs; folio 
 2. The other rows dim and each word of that row gets a short label. Type one: the selection starts on that word.
 
 `v` again (instead of a label) starts at the first word on screen, and `Esc` cancels. If a search match is on screen
-or the reading ruler is on, `v` starts there right away, without labels. Then:
+or the reading ruler is on, `v` starts there right away, without labels. A selection can run across pages: the
+motions continue onto the next page at a page's end, and so does a mouse drag. Then:
 
 | keys | |
 |---|---|
 | `w`/`e`, `b` | extend by a word forward / back |
-| `l`, `h` | by a character |
+| `l`, `h` | by a character forward / back |
 | `j`, `k` | to the line below / above |
 | `$`, `0` | end / start of the line |
 | `)` | to the end of the sentence |
 | `o` | swap the ends |
 | `y` / `Ctrl-c` | copy and leave visual mode |
-| `H` | highlight (`:highlight green` picks a color) |
-| `a` | highlight with a note |
+| `H` then a color key | highlight: `Hy` yellow, `Hg` green, `Hb` blue, `Hp` pink, `Hu` purple, `HH` the default color (the key menu shows them) |
+| `HA` | highlight with a note |
 | `*` | search for the selection |
 | `Esc` / `v` | cancel |
 
 Navigation keys from normal mode (`Ctrl-d`, `J`, …) still work in visual mode.
 With the mouse: drag to select, double-click to select a word, click to clear.
 
-`Y` copies the whole current page. `gh` lists highlights (`Enter` jumps, `Ctrl-d` deletes), and `ge`
-exports all highlights, notes and bookmarks as Markdown to the clipboard and the text panel.
+`Y` copies the whole current page. `gh` lists highlights (`Enter` jumps, `Ctrl-e` edits, `Ctrl-d` deletes), and
+`ge` exports all highlights, notes and bookmarks as Markdown to the clipboard and the text panel (`gE` to a file).
 Highlights and notes are saved per document.
+
+More colors: add one under `[theme.highlight]` and bind a key to it, e.g. `"Hr" = "highlight red"` under
+`[keys.visual]`.
+
+**Editing a highlight:** `gH` labels the highlights on screen; type one's label (or right-click a highlight) to open
+its menu: edit the note, copy the text, delete it, or change its color. From Lua or `--remote`, `highlight_color 2
+green`, `highlight_note 2 text` and `delete_highlight 2` act on highlight 2 as numbered in the `gh` list.
 
 ## Bookmarks
 
@@ -131,12 +141,46 @@ line by line, across pages, and the view scrolls to keep it in a comfortable spo
 
 ## Files
 
-`o` opens a file browser that starts in the current document's directory. Type to filter, `Tab` completes,
-`Enter` on a directory descends into it, and you can type or paste a full path. `O` lists recent documents.
-Position, zoom, marks, highlights and bookmarks are restored when you reopen a file.
+`o` starts the open menu (the menu of follow-up keys appears after a moment, as for every key prefix):
+
+| keys | |
+|---|---|
+| `oo` | the system's file dialog, starting in the current document's folder |
+| `of` | the keyboard file picker: type to filter, `Tab` completes, `Enter` on a directory descends into it, and you can type or paste a full path |
+| `or` or `O` | recent documents |
+
+Dropping PDFs on the window opens them in new tabs.
+
+## Tabs
+
+Several documents can be open in one window, each in a tab with its own position, search and selection. The tab
+bar appears once there are two tabs (setting `tab_bar`).
+
+| keys | |
+|---|---|
+| `ot` or `Ctrl-t` | open a document in a new tab (system dialog) |
+| `Shift-Enter` | in the file picker (`of`) or the recent list (`O`): open in a new tab instead of this one |
+| `gt` `gT`, `Ctrl-Tab` `Ctrl-Shift-Tab` | next / previous tab |
+| `Alt-1` … `Alt-9`, `:goto_tab N` | go to tab N |
+| `gb` | list the tabs (`Ctrl-d` closes one) |
+| `Ctrl-w` | close the tab |
+| `Ctrl-Shift-t` | reopen the last closed tab |
+
+Opening a document that's already open switches to its tab. `folio paper.pdf` while folio is running opens the
+paper as a new tab in that window (`folio --new paper.pdf` starts a separate one). When folio starts, the tabs of
+the last session come back (setting `restore_tabs`); only the visible one is loaded until you switch to the others. On Linux the system dialog needs the XDG desktop portal (GNOME, KDE and
+most desktops have it); use `of` where it's missing.
+Position, zoom, marks, highlights and bookmarks are restored when you reopen a file. In the recent list,
+`Ctrl-d` removes an entry. `ge` copies your highlights and notes as Markdown, `gE` saves them to a file.
+`:reveal_file` shows the document in the file manager, `:copy_path` copies its path.
 
 **Auto-reload:** when the open file changes on disk (for example `latexmk -pvc` or `typst watch`), folio reloads it
 and keeps your position. `R` forces a reload.
+
+**Rotation:** `>` turns the pages 90° clockwise, `<` turns them back (`:rotate 180` for any multiple of 90). The
+rotation is remembered per document; text selection, search and highlights follow it.
+
+**Password-protected PDFs** ask for the password when opened (it's kept in memory only, never saved).
 
 ## Pickers
 
@@ -162,6 +206,10 @@ folio --remote 'goto_page 12'
 folio --remote 'search Hawking radiation' 'center_line'
 folio --remote 'toggle_dark; zoom 140'
 ```
+
+Each command waits until folio has run it. `--remote` exits with status 1 and prints the message when a command
+fails (an unknown command, a bad argument, a Lua error, no document open), so scripts can check `$?`. Output
+goes to stdout: `folio --remote 'lua return folio.state().page'` prints the current page.
 
 This talks to the most recently started instance through `folio.sock` in `$XDG_RUNTIME_DIR`, or in `$TMPDIR`
 when `XDG_RUNTIME_DIR` isn't set (the usual case on macOS). If that instance is gone, the newest running one is

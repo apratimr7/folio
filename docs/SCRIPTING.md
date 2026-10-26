@@ -40,37 +40,54 @@ folio.exec("goto_page 12")
 ```
 Runs any command line (built-in or Lua). See [COMMANDS.md](COMMANDS.md).
 
+In short:
+
+<!-- generated: lua: Commands and keys -->
+| | |
+|---|---|
+| `folio.command(name, function(args, count) end, description)` | define a command (palette, keys, `exec`, `--remote`) |
+| `folio.map(keys, command_or_function, { mode = "normal", desc = "…" })` | bind keys (vim notation); `nil` unbinds |
+| `folio.exec(command_line)` | run any command line, built-in or Lua |
+| `folio.on(event, function(arg) end)` | run a function on an event (see Events) |
+<!-- end generated -->
+
 ### Events
 
 ```lua
 folio.on(event, function(arg) ... end)
 ```
 
+<!-- generated: events -->
 | event | argument |
 |---|---|
 | `open` | path of the opened document (canonical: symlinks resolved) |
 | `page` | new current page (string, 1-based). The first one fires after the saved position is restored. |
-| `selection` | selected text, after a mouse drag or **each** visual-mode change (debounce heavy work yourself) |
+| `selection` | selected text, after a mouse drag or **each** visual-mode change |
+| `selection_done` | selected text, once the selection has stayed the same for 0.4 s (use this for slow work, e.g. asking a model) |
 | `search` | the query, when a search is confirmed in the prompt or started with `search …` from Lua/remote |
 | `highlight` | text of a new highlight |
 | `quit` | — |
+<!-- end generated -->
 
 ### Reading the document
 
-| function | returns |
+<!-- generated: lua: Reading the document -->
+| | |
 |---|---|
-| `folio.state()` | `{ path, title, page, page_count, zoom, mode, selection, search, page_mode, theme }` |
+| `folio.state()` | `{ path, title, page, page_count, zoom, mode, selection, search, page_mode, theme, tab, tab_count }` (`page` and `tab` are 1-based) |
 | `folio.selection()` | selected text or `nil` |
 | `folio.page_text(n?)` | text of page `n` (default: current), words re-joined across hyphenated line breaks; `nil` outside `1..page_count` |
 | `folio.outline()` | `{ { title, depth, page }, ... }` |
 | `folio.highlights()` | `{ { page, text, color, note }, ... }` |
+<!-- end generated -->
 
 `state().mode` follows the status bar: `normal`, `visual`, `hint`, `peek`, `ruler`, `input` (a prompt is open) or
 `picker` (a picker is open). Key maps exist only for `normal` and `visual`.
 
 ### Output and input
 
-| function | |
+<!-- generated: lua: Output and input -->
+| | |
 |---|---|
 | `folio.notify(msg, level?)` | toast; `level` is `"info"`, `"warn"` or `"error"` |
 | `folio.show(title, text)` | open the side text panel with this content |
@@ -78,16 +95,19 @@ folio.on(event, function(arg) ... end)
 | `folio.prompt(label, function(input) end, initial?)` | single-line input at the bottom; `input` is `nil` if the user pressed Esc |
 | `folio.pick(title, items, function(index, item) end)` | fuzzy picker over a list of strings; `nil, nil` on Esc |
 | `folio.clipboard(text)` | copy to the clipboard |
+<!-- end generated -->
 
 ### System
 
-| function | |
+<!-- generated: lua: System -->
+| | |
 |---|---|
 | `folio.spawn(argv, function(stdout, stderr, code) end, { stdin = "..." })` | run a process **without blocking**; the callback runs on the UI thread when it exits |
-| `folio.open(path)` | open another document |
-| `folio.set(option, value)` | `statusbar`, `sidebar`, `smooth_scroll`, `scroll_step`, `zoom_step`, `page_gap`, `hint_chars`, `theme`, `page_mode`, `theme.<color>` |
+| `folio.open(path [, password])` | open another document; it's read in the background and the `open` event fires once it's shown (a protected one without a password asks for it) |
+| `folio.set(option, value)` | `statusbar`, `sidebar`, `smooth_scroll`, `scroll_step`, `zoom_step`, `page_gap`, `hint_chars`, `ruler_dim`, `hint_dim`, `theme`, `page_mode`, `theme.<color>` |
 | `folio.config_dir` | path of the config directory |
 | `folio.version` | folio version string |
+<!-- end generated -->
 
 The standard Lua libraries (`io`, `os`, `string`, `table`…) are available.
 

@@ -6,6 +6,7 @@
   <key>CFBundleDisplayName</key><string>@NAME@</string>
   <key>CFBundleIdentifier</key><string>io.github.apratimr7.@NAME@</string>
   <key>CFBundleExecutable</key><string>@NAME@</string>
+  <key>CFBundleIconFile</key><string>@NAME@</string>
   <key>CFBundlePackageType</key><string>APPL</string>
   <key>CFBundleVersion</key><string>@VERSION@</string>
   <key>CFBundleShortVersionString</key><string>@VERSION@</string>

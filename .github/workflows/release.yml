@@ -9,6 +9,9 @@ on:
 permissions:
   contents: write
 
+env:
+  RUST_TOOLCHAIN: "1.95"
+
 jobs:
   build:
     strategy:
@@ -25,12 +28,14 @@ jobs:
             asset: target/release/*-windows-*.zip
     runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v7
       - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y clang libclang-dev libxkbcommon-dev libgl1-mesa-dev
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: ${{ env.RUST_TOOLCHAIN }}
       - uses: Swatinem/rust-cache@v2
-      - run: cargo test
+      - run: cargo test --release # same profile as packaging, so MuPDF is compiled once
       - if: runner.os == 'Linux'
         run: ./scripts/package-linux.sh
       - if: runner.os == 'macOS'
@@ -38,7 +43,7 @@ jobs:
       - if: runner.os == 'Windows'
         run: ./scripts/build-windows.ps1
         shell: pwsh
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: release-${{ matrix.os }}
           path: ${{ matrix.asset }}
@@ -48,8 +53,8 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
-      - uses: actions/download-artifact@v5
+      - uses: actions/checkout@v7
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           merge-multiple: true

@@ -6,7 +6,7 @@ use crossbeam_channel::Receiver;
 
 #[allow(dead_code)] // never constructed until the named-pipe transport exists
 pub struct Server {
-    pub rx: Receiver<String>,
+    pub rx: Receiver<super::Request>,
 }
 
 impl Server {
@@ -17,4 +17,8 @@ impl Server {
 
 pub fn send(_commands: &[String]) -> Result<()> {
     bail!("remote control (--remote) isn't supported on Windows yet")
+}
+
+pub fn deliver(_commands: &[String]) -> Result<Vec<super::Reply>> {
+    bail!("remote control isn't supported on Windows yet")
 }

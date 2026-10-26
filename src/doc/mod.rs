@@ -201,6 +201,8 @@ pub struct Bitmap {
     pub pixels: Vec<u8>,
 }
 
+/// A document as the app sees it: page sizes, rendering, text with per-char boxes, links and the outline, in page
+/// points with a top-left origin. One instance per thread (`open_with`), since MuPDF documents aren't `Send`.
 pub trait Backend {
     fn page_count(&self) -> usize;
     /// Size of a page in points.
@@ -212,6 +214,8 @@ pub trait Backend {
     fn links(&self, page: usize) -> Vec<Link>;
     fn outline(&self) -> Vec<OutlineItem>;
     fn metadata(&self) -> Metadata;
+    /// The pages' own bounds (unrotated), to pass on in [`OpenOptions::page_bounds`].
+    fn page_bounds(&self) -> Vec<Rect>;
 }
 
 /// `std::fs::canonicalize`, minus the `\\?\` prefix Windows adds (`\\?\C:\a.pdf` → `C:\a.pdf`), so paths stay
@@ -227,6 +231,39 @@ pub fn canonicalize(path: &Path) -> std::io::Result<std::path::PathBuf> {
     Ok(p)
 }
 
+/// Opening failures the UI handles specially (by asking for a password).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenError {
+    NeedsPassword,
+    WrongPassword,
+}
+
+impl std::fmt::Display for OpenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            OpenError::NeedsPassword => "the document is password-protected",
+            OpenError::WrongPassword => "wrong password",
+        })
+    }
+}
+
+impl std::error::Error for OpenError {}
+
+/// How a document is opened. Every thread opens its own instance with the same options.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OpenOptions {
+    /// Clockwise view rotation in degrees: 0, 90, 180 or 270.
+    pub rotation: u16,
+    pub password: Option<String>,
+    /// Every page's bounds (from [`Backend::page_bounds`]), when already known: reading them means loading every
+    /// page, which takes a while for long books, so it's done once and shared.
+    pub page_bounds: Option<std::sync::Arc<Vec<Rect>>>,
+}
+
 pub fn open(path: &Path) -> Result<Box<dyn Backend>> {
-    Ok(Box::new(MupdfDoc::open(path)?))
+    open_with(path, &OpenOptions::default())
+}
+
+pub fn open_with(path: &Path, opts: &OpenOptions) -> Result<Box<dyn Backend>> {
+    Ok(Box::new(MupdfDoc::open(path, opts)?))
 }

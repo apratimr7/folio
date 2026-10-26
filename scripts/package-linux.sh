@@ -18,9 +18,11 @@ rm -rf "$DIR"
 mkdir -p "$DIR"
 cp "target/release/$APP" README.md LICENSE "$DIR/"
 sed "s/@NAME@/$APP/g" packaging/linux/app.desktop.in > "$DIR/$APP.desktop"
+cp packaging/icons/app.svg "$DIR/$APP.svg"
 strip "$DIR/$APP" 2>/dev/null || true
 tar -C target/release -czf "target/release/$NAME.tar.gz" "$NAME"
 echo
 echo "built target/release/$NAME.tar.gz"
 echo "Install: tar xzf $NAME.tar.gz && install -Dm755 $NAME/$APP ~/.local/bin/$APP"
 echo "         install -Dm644 $NAME/$APP.desktop ~/.local/share/applications/$APP.desktop"
+echo "         install -Dm644 $NAME/$APP.svg ~/.local/share/icons/hicolor/scalable/apps/$APP.svg"

@@ -4,23 +4,25 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 
 ## Known issues
 
-- [ ] **macOS: opening from Finder** doesn't load the file, because the Apple Event `odoc` isn't handled (winit
-      doesn't expose it). Workaround: `open -a folio --args file.pdf`. Fix: a small `objc2` hook on
-      `application:openURLs:`.
-- [ ] CI passes (Linux, macOS arm64/x86_64), but the workflow's actions use Node 20 and need bumping
-      (`actions/checkout`, `actions/upload-artifact`).
+- [x] **macOS: opening from Finder** (double-click, Open With, `open -a folio file.pdf`): `application:openURLs:`
+      is added to `NSObject` before launch (`open_events.rs`); files open as tabs. Checked with `open -a`; a real
+      Finder double-click is still to be tried by hand.
 - [ ] **macOS: still unchecked on real hardware** after the 2026-10-20 test pass (which covered everything else, see
       below; trackpad scrolling and pinch zoom were confirmed by hand): Retina sharpness and the Intel build. (Since the
       switch to MuPDF the app has no Homebrew/dylib dependencies.)
 - [ ] After an auto-reload where the text reflowed (an edited LaTeX source), saved highlights keep their old
       positions and char offsets. Re-anchor them by searching for their text near the old place.
-- [ ] Selections can't span pages (visual mode stays on the page where it started).
+- [x] Selections can't span pages: they can now (motions and mouse drags continue across pages; a highlight
+      over several pages is stored as one piece per page).
 - [ ] Smart references are heuristic. Known gaps: author–year citations (`Smith et al. 2020`), equation numbers
-      that aren't at the end of their text line, two-column layouts where poppler merges lines from both columns.
+      that aren't at the end of their text line, two-column layouts (MuPDF keeps the columns apart; its block structure could
+      help further, see MuPDF follow-ups).
 - [ ] Bare equation references like `(2.8)` are only detected with a dot (to avoid noise like `(1)`).
-- [ ] Page rotation (`/Rotate`) is handled by poppler's page size, but no rotate command exists yet.
-- [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
-- [ ] PDF link-border annotations (red hyperref boxes) are drawn as authored; add an option to hide them.
+- [x] Page rotation: the PDF's own `/Rotate` is honored by MuPDF; `rotate` (`>`/`<`) turns the view, per document.
+- [x] Huge documents: page sizes are read once, in the background, and shared with the workers (a 1,300-page book
+      takes about 0.1 s); reading them lazily isn't needed for now.
+- [x] PDF link-border annotations (red hyperref boxes): MuPDF doesn't draw link borders, so nothing to hide
+      (checked on `refs.pdf`, default hyperref).
 - [x] License: AGPL-3.0-or-later (MuPDF requires AGPL compatibility).
 
 ## From user testing (2026-10-20)
@@ -32,7 +34,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       extending (only `o` swaps ends): caret mode is listed as optional under Later.
 - [ ] **Lua API gaps:**
   - [ ] Bookmarks and marks: read, add, delete (`folio.bookmarks()`, `folio.marks()`, …).
-  - [ ] Highlights: delete and recolor, plus create directly instead of only via `exec`.
+  - [ ] Highlights: create directly instead of only via `exec` (delete, recolor and notes: the
+        `delete_highlight`/`highlight_color`/`highlight_note N` commands).
   - [ ] Timers: `folio.defer(ms, fn)` / `folio.every(ms, fn)`.
   - [ ] Read config values (`folio.get(option)`), not only set them.
   - [ ] Positions: text with boxes (`folio.page_words(n)` → `{text, x0, y0, x1, y1}`), the current scroll position,
@@ -40,7 +43,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
   - [ ] Richer hook arguments: `page` as a number; `highlight` as a table `{page, text, color, note}`.
 - [x] **Bugs from the Lua/automation test pass**: all fixed, see `CHANGELOG.md` [Unreleased] and
       `docs/testing/2026-10-20-lua-api-report.md`. Still open from that pass:
-  - [ ] Debounce the `selection` hook (or add a `selection_done` event) for heavy handlers such as AI calls.
+  - [x] Debounce the `selection` hook (or add a `selection_done` event) for heavy handlers such as AI calls.
+        `selection_done` fires once the selection is unchanged for 0.4 s.
   - [x] Recheck `folio.clipboard` by hand. Works on macOS (`y`, `Y`, `Cmd-c`, `folio.clipboard`, export).
 
 ## From macOS testing (2026-10-20)
@@ -53,7 +57,7 @@ High:
       `App::on_exit` (checked with an Apple Event quit: position saved, hook ran).
 - [x] **2. Auto-reload can crash (SIGSEGV in poppler) on a file that's still being written.** `file_changed` now
       waits for size+mtime to be stable across two polls and `%%EOF` in the last 1 KB.
-  - [ ] Still open: open the new document off the UI thread and swap it in on success.
+  - [x] Opening runs off the UI thread (see Missing basics); reloads still don't.
 
 Medium:
 
@@ -86,16 +90,17 @@ Low:
 - [x] 16. Status bar shows empty `()` for pages with an empty label.
 - [x] 17. `USAGE.md` socket path is wrong on macOS (`$TMPDIR`); a socket path over 104 bytes silently disables
       remote control (stderr only). Doc fixed, bind failures show a toast.
-- [ ] 18. `--remote` exits 0 on unknown commands and errors (see `--remote` replies below).
+- [x] 18. `--remote` exits 0 on unknown commands and errors. Now it waits for each command, prints output
+      (`lua` results) and exits 1 with the message on failure.
 - [ ] Ctrl/Cmd + wheel zoom is very sensitive with synthetic wheel events (10 events: 139% → 1200%). Pinch zoom
       on the trackpad feels fine; check with a real mouse wheel.
-- [ ] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)
+- [x] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)
 
 ## Found by the test suite
 
 - [x] References whose keyword is hyphenated across a line break weren't detected (`refs::detect`).
 - [x] A truncated PDF opened with zero pages and no error (the page tree is at the end of the file).
-- [ ] `--debug findref` prints an empty `«»` line for equation targets (it matches lines by the first char's y).
+- [x] `--debug findref` prints an empty `«»` line for equation targets (it matches lines by the first char's y).
       Debug output only; the resolved target is correct.
 
 ## MuPDF follow-ups
@@ -109,7 +114,8 @@ Low:
 
 ## Missing basics
 
-- [ ] **Native file dialog for opening documents** (user request, 2026-10-21). Today a file outside the current
+- [x] **Native file dialog for opening documents** (done: `oo`, `open_dialog`; `o` is now a prefix with a key
+      menu, `of` the keyboard picker, `or`/`O` recents) (user request, 2026-10-21). Today a file outside the current
       folder or the recent list needs its path typed or pasted into `o`, which is too much hassle. Add an
       `open_dialog` command that shows the system's own file chooser, filtered to PDFs and starting in the current
       document's folder: GTK/KDE through the XDG desktop portal on Linux, `NSOpenPanel` on macOS, the common file
@@ -117,36 +123,36 @@ Low:
       it's open, and add the chosen file to recents. Decide on a key (and whether `o` should open the native dialog,
       via a `file_dialog = "native" | "builtin"` setting); keep the keyboard picker either way.
 - [ ] **Opening and managing files** (review, 2026-10-21; do the first three together with the native dialog):
-  - [ ] Open from the file manager: macOS Finder (`odoc`, see Known issues) and a Linux `.desktop` file so folio
-        appears under "Open with" (see Packaging in Next up).
-  - [ ] Single instance: `folio other.pdf` while folio is running hands the file to the open window (over the
-        remote socket) instead of starting a second one; a flag to force a new window.
+  - [x] Open from the file manager: macOS Finder (see Known issues) and the Linux `.desktop` file (`%F`, icon).
+  - [x] Single instance: `folio other.pdf` while folio is running opens it as a new tab there (over the remote
+        socket; Unix only until Windows has remote control); `--new` starts a separate window.
   - [ ] Open by URL or arXiv ID: `open_url`-style command that downloads a pasted `arxiv.org`/PDF link or an ID
         like `1409.3575`, saves it to a configurable folder and opens it.
-  - [ ] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
+  - [x] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
         has no title; take the title from the first page's largest text when the metadata is empty.
-  - [ ] Recent list: `Ctrl-d` removes an entry, pin favorites to the top, and say how many missing files were
-        hidden instead of dropping them silently.
+  - [x] Recent list: `Ctrl-d` removes an entry and the title says how many missing files are hidden.
+  - [ ] Pin favorites to the top of the recent list.
   - [ ] Library search: a fuzzy picker over every PDF in configured folders (e.g. `library = ["~/Papers"]`),
         indexed in the background, so any paper opens from a few letters of its name.
   - [ ] Folder shortcuts in the keyboard file picker (home, Downloads, configured library folders).
-  - [ ] Switch back to the previous document (`alternate_file`, `<C-^>` like vim) until tabs exist (see "New window
-        and new tab" in Next up).
-  - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
-        "open the new document off the UI thread").
-  - [ ] Save dialogs: export highlights to a Markdown file (today only clipboard and panel) and let `screenshot`
-        ask where to save instead of requiring a path.
-  - [ ] `reveal_file` (show the document in the file manager) and `copy_path` commands.
-- [ ] **Password-protected PDFs:** they now fail with a clear "password-protected" error; add a prompt
-      (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
+  - [x] Switch back to the previous document (`alternate_file`, `<C-6>`/`<C-^>` like vim).
+  - [x] Load documents off the UI thread (`loader.rs`): a helper thread reads every page's size, the outline and
+        the title; the page sizes are shared with the render and text threads instead of each reading them again.
+        Reloads after a file change are still read on the UI thread (they're usually small LaTeX builds).
+  - [x] Save dialogs: `gE`/`save_highlights` saves highlights as Markdown (`export_highlights PATH` writes
+        directly), and `screenshot` without a path asks where to save.
+  - [x] `reveal_file` (show the document in the file manager) and `copy_path` commands.
+- [x] **Password-protected PDFs:** a masked prompt asks for the password (again after a wrong one);
+      `folio.open(path, password)` from Lua. No `--password` flag: it would end up in shell history.
 - [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
 - [x] **Remember window size and position** (eframe persistence, `window.ron` in the data dir). Saving is
       verified; restoring couldn't be observed on the test machine because a tiling window manager places windows.
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).
 - [ ] **Scrollbar / position indicator** you can drag, at least on hover.
-- [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).
-- [ ] **Set as default PDF viewer** works only after the Finder `odoc` fix (Known issues).
-- [ ] Printed page numbers: `:8` is always the physical page; add a syntax for the printed page (e.g. `:p8`).
+- [x] **App icon** (`packaging/icons/app.svg`, rendered by `scripts/build-icons.sh`): macOS `.icns`, the Linux SVG,
+      and the window icon. Still missing: the Windows `.exe` icon (see Windows packaging).
+- [x] **Set as default PDF viewer**: possible now that Finder opens are handled (Known issues).
+- [x] Printed page numbers: `:8` is always the physical page; `:p8` (or `goto_page p8`) goes to the page labeled 8.
 
 ## Configuration space (to build in one go)
 
@@ -155,7 +161,7 @@ writable from Lua (`folio.get`/`folio.set`, see "Lua API gaps"), validated with 
 and documented in `docs/CONFIGURATION.md`. Current value and location in parentheses.
 
 **First (asked for):**
-- [ ] **Dimming amounts:** the visual-mode word-hint dim (alpha 90 dark / 60 light, `ui/frame.rs`), the reading
+- [x] **Dimming amounts** (`ruler_dim`, `hint_dim`; 0 turns one off): the visual-mode word-hint dim (alpha 90 dark / 60 light, `ui/frame.rs`), the reading
       ruler's "already read" dim (40 / 18, `ui/frame.rs`), and an on/off for each.
 
 Hints and visual mode:
@@ -206,12 +212,12 @@ System and safety:
 Measured on the Windows job: about 49 min cold (MuPDF compiled twice, no cache yet), 16.5 min with a warm cache.
 macOS arm64 and Linux take 1–4 min warm. In order of value:
 
-- [ ] **Pin the Rust toolchain in CI** (`1.95` instead of `stable`): every new stable release changes the cache key
+- [x] **Pin the Rust toolchain in CI** (`1.95` instead of `stable`): every new stable release changes the cache key
       and forces a full MuPDF rebuild. Bump it deliberately.
-- [ ] **Compile MuPDF once per run**: run the tests in release mode (`cargo test --release`) so the packaging step
+- [x] **Compile MuPDF once per run**: run the tests in release mode (`cargo test --release`) so the packaging step
       reuses the same build instead of building MuPDF again with the release profile (roughly halves a cold build).
-- [ ] **Skip CI for docs-only changes** (`paths-ignore: ['**.md', 'docs/**']` on `push`/`pull_request`).
-- [ ] **Cancel superseded runs** (`concurrency: { group: ${{ github.workflow }}-${{ github.ref }},
+- [x] **Skip CI for docs-only changes** (`paths-ignore: ['**.md', 'docs/**']` on `push`/`pull_request`).
+- [x] **Cancel superseded runs** (`concurrency: { group: ${{ github.workflow }}-${{ github.ref }},
       cancel-in-progress: true }`), so a new push to `dev` stops the previous run.
 - [ ] **Parallel MSBuild for MuPDF on Windows**: `mupdf-sys` calls MSBuild without `/m`, so the third-party
       projects build one after another. Patch it (vendor `mupdf-sys` like `mupdf`) and send the fix upstream;
@@ -220,29 +226,32 @@ macOS arm64 and Linux take 1–4 min warm. In order of value:
 
 ## Documentation
 
-Goal: good docs for users and contributors that can't drift from the code. Plan (needs a decision before
-starting):
+Goal: good docs for users and contributors that can't drift from the code. Built 2026-10-26: `book.toml`,
+`docs/SUMMARY.md`, `.github/workflows/docs.yml` (needs Settings → Pages → Source: GitHub Actions once), generated
+tables refreshed by `folio --update-docs` and checked by `src/tests/docs.rs`. Still open: per-platform install
+pages and short clips.
 
-- [ ] **A documentation site with mdBook**, built from the existing `docs/*.md` (no rewrite) and published to GitHub
+- [x] **A documentation site with mdBook**, built from the existing `docs/*.md` (no rewrite) and published to GitHub
       Pages by a workflow on `main`: navigation, search, dark mode. It can grow into the project website later.
-- [ ] **Generated reference pages**, each checked by a test so a change in code without docs fails CI (as
+- [x] **Generated reference pages**, each checked by a test so a change in code without docs fails CI (as
       `docs/COMMANDS.md` already is):
-  - [ ] commands and default keys (`folio --list-commands`, exists);
-  - [ ] configuration reference generated from the config schema and its doc comments (a `--list-config` that
+  - [x] commands and default keys (`folio --list-commands`, exists);
+  - [x] configuration reference generated from the config schema and its doc comments (a `--list-config` that
         prints Markdown: key, type, default, description), replacing the hand-written tables;
-  - [ ] Lua API reference generated from the functions registered in `script.rs` (name, arguments, returns,
+  - [x] Lua API reference generated from the functions registered in `script.rs` (name, arguments, returns,
         description kept next to each registration), replacing the tables in `SCRIPTING.md`.
-- [ ] **Getting started** page with screenshots or short clips (smart references, peek, `v` hints, dark mode), a FAQ
+- [x] **Getting started** page with screenshots or short clips (smart references, peek, `v` hints, dark mode), a FAQ
       (first-run warnings, where config lives per platform), and per-platform install pages.
-- [ ] **Contributor docs**: `cargo doc --document-private-items` published under the site (`/dev/`), and doc comments
+- [x] **Contributor docs**: `cargo doc --document-private-items` published under the site (`/dev/`), and doc comments
       on the main types (`App`, `Session`, `Backend`, `View`, `Script`).
-- [ ] Link checks for the docs in CI (`lychee` or `mdbook-linkcheck`).
+- [x] Link checks for the docs in CI (`lychee` or `mdbook-linkcheck`).
 
 ## Next up
 
-- [ ] **New window and new tab.** Open another document (or the same one) in a new window or a tab, with
-      commands for both (`new_window`, `new_tab`, `next_tab`/`prev_tab`, `close_tab`) and keys. `--remote` and
-      Lua need to address a window/tab. ROADMAP "Later" also lists a split view of the same document.
+- [x] **Tabs** (2026-10-26): `new_tab`, `close_tab`, `next_tab`/`prev_tab`, `goto_tab`, `tabs`, `reopen_tab`; a tab bar;
+      restored on start (`restore_tabs`); `folio FILE` hands files to the running window.
+  - [ ] New window (a second viewport) and a split view of the same document (ROADMAP "Later").
+  - [ ] `--remote`/Lua addressing a specific tab (today they act on the active one); `folio.tabs()`.
 - [x] **Windows build.** Builds and tests in CI (`windows-latest`, MSVC) and uploads a zipped `folio.exe`
       (`scripts/build-windows.ps1`). Config in `%APPDATA%\folio`, data in `%LOCALAPPDATA%\folio`. Follow-ups:
   - [ ] First manual runs on real Windows machines (first testers): rendering, fonts (Segoe UI fallback),
@@ -258,17 +267,18 @@ starting):
 - [ ] Two-page / book mode, and a horizontal-scroll mode for slides.
 - [ ] Presentation mode (one page, fit page, no chrome).
 - [ ] SyncTeX: forward search via `--remote 'synctex file.tex:line'` and inverse search to an editor command.
-- [ ] Cross-page and column-aware selection (use poppler's text attributes for column detection).
-- [ ] Highlight editing: change color, edit note, delete under cursor.
+- [x] Cross-page selection. Column-aware: MuPDF's reading order already keeps columns apart; check on real
+      two-column papers.
+- [x] Highlight editing: `gH` hints (or right-click, or `Ctrl-e` in `gh`) open a menu: note, copy, delete, color;
+      `highlight_color`/`highlight_note`/`delete_highlight N` commands.
 - [ ] Search options: regex, whole word, search within the current section.
 - [ ] Persistent search history and command history.
 - [ ] Portals (sioyek-style): link a place in the text to another (e.g. a figure) and keep it in a side view.
-- [ ] Export highlights into the PDF as real annotations (poppler supports writing annotations).
 - [ ] Thumbnails overview grid (`gt`).
 - [ ] Config hot-reload on file change.
 - [ ] `folio --remote` replies (query state, return JSON) for richer editor/agent integration.
 - [x] Tests for `refs.rs` detection/definitions on a small corpus of generated PDFs (`docs/TESTING.md`).
-- [ ] Packaging: AUR `PKGBUILD`, Homebrew formula, `.desktop` file and icon.
+- [ ] Packaging: AUR `PKGBUILD`, Homebrew formula (the `.desktop` file and icon exist).
 
 ## Later
 
@@ -285,8 +295,7 @@ Optional:
   - [ ] Follow the system light/dark mode and accent color; respect reduced-motion and contrast settings.
   - [ ] Icons (status bar, sidebar, palette), consistent spacing and type scale, subtle shadows and short
         animations for panels and peek.
-  - [ ] Thumbnails sidebar; a slim scrollbar shown on hover (also in Missing basics).
-  - [ ] Native file dialog: moved to "Missing basics".
+  - [ ] Thumbnails sidebar (the scrollbar is in Missing basics).
   - [ ] Screen reader support (egui AccessKit).
   - [ ] macOS: native menu bar with standard shortcuts, transparent title bar with content under the window
         buttons, SF Pro and the system accent, recent documents in the Dock menu, `Cmd-,` for settings.

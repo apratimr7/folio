@@ -58,6 +58,10 @@ What each area covers:
   - `Config::load` from `XDG_CONFIG_HOME`; `Rgba::parse`
   - every default key binding parses and names a built-in command, with no duplicates
 - **`commands.rs`**: every built-in command is in `docs/COMMANDS.md`, and every command listed there exists.
+- **`docs.rs`**: the generated tables in `docs/` (commands, `[general]` settings, the Lua API and its events) match
+  the code. `config::GENERAL_DOCS` lists exactly the fields of `General`, `script::LUA_API` exactly the `folio`
+  table, and `script::HOOKS` exactly the events the app emits. After changing any of these, run
+  `folio --update-docs`.
 - **`script.rs`** (a `Script` with a test `Snapshot` and a real document):
   - `folio.state()`, `page_text`, `outline`, `highlights`
   - `command` with args and counts; `map` to commands and functions

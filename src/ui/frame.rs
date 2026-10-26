@@ -21,6 +21,25 @@ use crate::text::Response as TextResponse;
 const TEXTURE_BUDGET: usize = 320 << 20;
 
 impl eframe::App for App {
+    /// Runs before every frame and also while the window is hidden (minimized, covered, on another Space), so
+    /// remote commands, files from Finder, dialog results and documents read in the background are handled then too.
+    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.poll_jobs();
+        self.settle_selection();
+        self.poll_dialogs();
+        self.poll_loader();
+        let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
+        for req in remote {
+            let reply = self.run_remote(&req.line);
+            let _ = req.reply.send(reply);
+        }
+        for path in crate::open_events::take() {
+            self.open_in_new_tab(&path);
+            self.ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let now = Instant::now();
@@ -32,25 +51,28 @@ impl eframe::App for App {
             self.emit_quit();
         }
         self.poll_workers(&ctx);
-        self.poll_jobs();
-        let remote: Vec<String> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
-        for line in remote {
-            // `;` separates commands, except inside Lua code.
-            if crate::commands::split(&line).0 == "lua" {
-                self.run_line(&line, None);
-            } else {
-                for cmd in line.split(';') {
-                    self.run_line(cmd, None);
-                }
-            }
-        }
-        // A file dropped onto the window opens like `o` would.
-        if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf())) {
-            self.open(&path);
+        // Files dropped onto the window open in new tabs.
+        let dropped: Vec<_> = ctx.input(|i| {
+            i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect::<Vec<_>>()
+        });
+        for path in dropped {
+            self.open_in_new_tab(&path);
         }
         self.handle_keys(&ctx);
         self.tick_keys();
 
+        let show_tabs = match self.cfg.general.tab_bar {
+            crate::config::TabBar::Auto => self.tab_count() > 1,
+            crate::config::TabBar::Always => self.tab_count() > 0,
+            crate::config::TabBar::Never => false,
+        };
+        if show_tabs {
+            egui::Panel::top("tabs")
+                .exact_size(34.0)
+                .frame(egui::Frame::new().fill(c(self.theme.surface)))
+                .show_separator_line(false)
+                .show(ui, |ui| self.tab_bar(ui));
+        }
         if self.show_statusbar {
             egui::Panel::bottom("status")
                 .exact_size(28.0)
@@ -94,6 +116,7 @@ impl eframe::App for App {
             let ev = p.show(&ctx, &self.theme, hint);
             self.picker_event(ev);
         }
+        self.key_menu(&ctx);
         self.toasts_ui(&ctx);
         self.request_tiles(&ctx);
 
@@ -202,21 +225,29 @@ impl App {
             return;
         }
         for chord in keys {
-            // Overlays get first pick.
-            if self.doc.as_ref().is_some_and(|d| d.hints.is_some()) {
-                self.hint_key(&chord);
-                continue;
-            }
-            if self.doc.as_ref().is_some_and(|d| d.peek.is_some()) && self.peek_key(&chord) {
-                continue;
-            }
-            if self.picker.is_some() || self.prompt.is_some() {
+            if !self.dispatch_chord(chord) {
                 break;
             }
-            self.feed_key(chord);
         }
         // Don't let the keys that opened a text field also type into it.
         strip_key_events(ctx);
+    }
+
+    /// One key, typed or from `feed_keys`: hints and peek get first pick, then the key map. False once a picker or
+    /// prompt has opened (the remaining keys belong to its text field).
+    pub fn dispatch_chord(&mut self, chord: Chord) -> bool {
+        if self.doc.as_ref().is_some_and(|d| d.hints.is_some()) {
+            self.hint_key(&chord);
+            return true;
+        }
+        if self.doc.as_ref().is_some_and(|d| d.peek.is_some()) && self.peek_key(&chord) {
+            return true;
+        }
+        if self.picker.is_some() || self.prompt.is_some() {
+            return false;
+        }
+        self.feed_key(chord);
+        true
     }
 
     fn hint_key(&mut self, chord: &Chord) {
@@ -550,13 +581,14 @@ impl App {
             }
 
             // Selection.
-            if let Some(sel) = d.selection.filter(|s| s.page == p) {
+            if let Some(sel) = d.selection {
                 let t = d.page_texts.get(&p).cloned().unwrap_or_else(|| d.page_text(p));
-                let (s, e) = sel.range();
-                for r in t.span_rects(s, e) {
-                    painter.rect_filled(to_screen(&r).expand2(Vec2::new(1.0, 1.5)), 2.0, c(theme.selection));
+                if let Some((s, e)) = sel.range_on(p, t.chars.len()) {
+                    for r in t.span_rects(s, e) {
+                        painter.rect_filled(to_screen(&r).expand2(Vec2::new(1.0, 1.5)), 2.0, c(theme.selection));
+                    }
                 }
-                if let Some(cr) = t.rects.get(sel.cursor) {
+                if let Some(cr) = t.rects.get(sel.cursor.idx).filter(|_| sel.cursor.page == p) {
                     let sr = to_screen(cr);
                     painter.line_segment([sr.right_top(), sr.right_bottom()], Stroke::new(2.0, c(theme.accent)));
                 }
@@ -577,7 +609,7 @@ impl App {
                     );
                     // Dim what's already been read.
                     let dim = Rect::from_min_max(pr.min, Pos2::new(pr.right(), band.top()));
-                    painter.rect_filled(dim, 0.0, Color32::from_black_alpha(if theme.dark { 40 } else { 18 }));
+                    painter.rect_filled(dim, 0.0, Color32::from_black_alpha(self.cfg.general.ruler_dim_alpha(theme.dark)));
                 }
             }
 
@@ -592,7 +624,7 @@ impl App {
                     .reduce(|a, b| a.union(b));
                 if let Some(row) = row {
                     let row = row.expand2(Vec2::new(0.0, 3.0));
-                    let dim = Color32::from_black_alpha(if theme.dark { 90 } else { 60 });
+                    let dim = Color32::from_black_alpha(self.cfg.general.hint_dim_alpha(theme.dark));
                     painter.rect_filled(Rect::from_min_max(pr.min, Pos2::new(pr.right(), row.top())), 0.0, dim);
                     painter.rect_filled(Rect::from_min_max(Pos2::new(pr.left(), row.bottom()), pr.max), 0.0, dim);
                 }
@@ -669,6 +701,7 @@ impl App {
                     "type a word's label to start selecting there  ·  Esc cancels"
                 }
                 HintMode::Select => "pick a line, then a word  ·  v starts at the top  ·  Esc cancels",
+                HintMode::Edit => "type a highlight's label to edit it  ·  Esc cancels",
             };
             banner(&painter, rect, &theme, label);
         }
@@ -701,12 +734,12 @@ impl App {
             } else if pos.y < rect.top() + 20.0 {
                 d.view.scroll_by(-12.0, false);
             }
-            if let Some((p2, x, y)) = to_doc(d, pos)
-                && p2 == page
-            {
-                let t = d.page_text(page);
+            // The drag can continue onto other pages.
+            if let Some((p2, x, y)) = to_doc(d, pos) {
+                let t = d.page_text(p2);
                 if let Some(ci) = t.char_at(x, y) {
-                    d.selection = Some(crate::session::Selection { page, anchor, cursor: ci });
+                    let at = |page, idx| crate::session::TextPos { page, idx };
+                    d.selection = Some(crate::session::Selection { anchor: at(page, anchor), cursor: at(p2, ci) });
                     self.mode = Mode::Visual;
                 }
             }
@@ -724,7 +757,7 @@ impl App {
                 if let Some(ci) = t.char_at(x, y)
                     && let Some(&(s, e)) = t.words().iter().find(|&&(s, e)| ci >= s && ci < e)
                 {
-                    d.selection = Some(crate::session::Selection { page, anchor: s, cursor: e - 1 });
+                    d.selection = Some(crate::session::Selection::on_page(page, s, e - 1));
                     self.mode = Mode::Visual;
                 }
             }
@@ -742,8 +775,12 @@ impl App {
                 }
             }
         } else if resp.secondary_clicked() {
-            // Right click previews internal links.
+            // Right click on a highlight opens its menu; on an internal link, a preview.
             let Some((page, x, y)) = resp.interact_pointer_pos().and_then(|p| to_doc(d, p)) else { return };
+            if let Some(i) = self.highlight_at(page, x, y) {
+                return self.open_highlight_menu(i);
+            }
+            let Some(d) = &mut self.doc else { return };
             let link =
                 d.page_links(page).iter().find(|l| x >= l.rect.x0 && x <= l.rect.x1 && y >= l.rect.y0 && y <= l.rect.y1).cloned();
             if let Some(doc::LinkTarget::Page(pos)) = link.map(|l| l.target) {
@@ -755,6 +792,17 @@ impl App {
     fn welcome(&mut self, ui: &mut egui::Ui, rect: Rect) {
         let painter = ui.painter_at(rect);
         let t = &self.theme;
+        if let Some(p) = self.active_pending.as_deref().or(self.loader.loading()) {
+            let name = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            painter.text(
+                rect.center(),
+                Align2::CENTER_CENTER,
+                format!("Opening {name}…"),
+                FontId::proportional(16.0),
+                c(t.text_dim),
+            );
+            return;
+        }
         let center = rect.center() - Vec2::new(0.0, 60.0);
         painter.text(center, Align2::CENTER_BOTTOM, crate::config::APP_NAME, FontId::proportional(56.0), c(t.text));
         painter.text(
@@ -764,7 +812,7 @@ impl App {
             FontId::proportional(15.0),
             c(t.text_dim),
         );
-        let rows = [("o", "open a file"), ("O", "recent documents"), (":", "command palette"), ("F1", "all key bindings")];
+        let rows = [("oo", "open a file"), ("O", "recent documents"), (":", "command palette"), ("F1", "all key bindings")];
         for (i, (k, d)) in rows.iter().enumerate() {
             let y = center.y + 70.0 + i as f32 * 28.0;
             let kr = Rect::from_center_size(Pos2::new(center.x - 70.0, y), Vec2::new(40.0, 22.0));
@@ -840,6 +888,11 @@ impl App {
                     let col = if s.done && s.hits.is_empty() { t.search_current } else { t.text };
                     ui.label(RichText::new(msg).color(c(col)));
                 }
+                if let Some(p) = self.loader.loading() {
+                    let name: String =
+                        p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default().chars().take(40).collect();
+                    ui.label(RichText::new(format!("opening {name}…")).color(c(t.text_dim)));
+                }
                 if let Some((_, _, label)) = &d.pending_ref {
                     ui.label(RichText::new(format!("finding {label}…")).color(c(t.text_dim)));
                 }
@@ -885,6 +938,7 @@ impl App {
             ui.label(RichText::new(label).color(c(t.accent)).strong().size(15.0));
             let id = egui::Id::unique("prompt_input");
             let edit = egui::TextEdit::singleline(&mut p.text)
+                .password(matches!(p.kind, PromptKind::Password(_)))
                 .id(id)
                 .desired_width(f32::INFINITY)
                 .font(FontId::proportional(15.0))
@@ -1035,6 +1089,80 @@ impl App {
                                 Rect::from_min_max(pr.min + Vec2::new(r.x0, r.y0) * zoom, pr.min + Vec2::new(r.x1, r.y1) * zoom);
                             painter.rect_stroke(sr.expand(3.0), 3.0, Stroke::new(2.0, c(t.accent)), StrokeKind::Outside);
                         }
+                    });
+            });
+    }
+
+    /// After a key prefix (`o`, `g`, `z`…), a menu of the keys that can follow and what they do.
+    fn key_menu(&mut self, ctx: &egui::Context) {
+        const DELAY: Duration = Duration::from_millis(350);
+        let Some(waited) = self.disp.pending_for() else { return };
+        let Some(map) = self.keymaps.get(self.mode.name()) else { return };
+        let rows = self.disp.continuations(map);
+        if rows.is_empty() {
+            return;
+        }
+        // Fast typists finish `gg` before the menu shows.
+        if waited < DELAY {
+            ctx.request_repaint_after(DELAY - waited);
+            return;
+        }
+        let describe = |cmd: &str| {
+            let (name, args) = crate::commands::split(cmd);
+            match crate::commands::builtin(name) {
+                // The short form: "Open a PDF: type or browse to a path (…)" → "Open a PDF: type or browse to a path".
+                Some(b) if args.is_empty() => b.description.split(" (").next().unwrap_or(b.description).to_string(),
+                _ => self
+                    .script
+                    .as_ref()
+                    .and_then(|s| s.commands().into_iter().find(|(n, _)| n == name).map(|(_, d)| d))
+                    .filter(|d| !d.is_empty() && args.is_empty())
+                    .unwrap_or_else(|| cmd.to_string()),
+            }
+        };
+        let t = self.theme.clone();
+        let prefix = self.disp.pending_display();
+        let bottom = if self.show_statusbar { 40.0 } else { 12.0 };
+        egui::Area::new(egui::Id::unique("key_menu"))
+            .order(egui::Order::Foreground)
+            .anchor(Align2::LEFT_BOTTOM, Vec2::new(14.0, -bottom))
+            .interactable(false)
+            .show(ctx, |ui| {
+                egui::Frame::new()
+                    .fill(c(t.surface))
+                    .stroke(Stroke::new(1.0, c(t.border)))
+                    .corner_radius(radius(&t))
+                    .shadow(ui.visuals().window_shadow)
+                    .inner_margin(egui::Margin::symmetric(12, 10))
+                    .show(ui, |ui| {
+                        ui.label(RichText::new(prefix).monospace().strong().color(c(t.accent)));
+                        ui.add_space(4.0);
+                        egui::Grid::new(egui::Id::unique("key_menu_grid")).spacing([14.0, 4.0]).show(ui, |ui| {
+                            for (keys, cmd) in rows.iter().take(24) {
+                                ui.label(RichText::new(keys).monospace().color(c(t.accent)));
+                                // Highlight colors show as a swatch and their name.
+                                match crate::commands::split(cmd) {
+                                    ("highlight", color) => {
+                                        let name = if color.is_empty() {
+                                            t.highlights.first().map(|h| h.0.as_str()).unwrap_or("")
+                                        } else {
+                                            color
+                                        };
+                                        ui.horizontal(|ui| {
+                                            let (r, _) = ui.allocate_exact_size(Vec2::new(26.0, 14.0), Sense::hover());
+                                            ui.painter().rect_filled(r, 3.0, with_alpha(t.highlight_color(name), 255));
+                                            let label =
+                                                if color.is_empty() { format!("{name} (default)") } else { name.to_string() };
+                                            ui.label(RichText::new(label).color(c(t.text)));
+                                        });
+                                    }
+                                    _ => {
+                                        ui.label(RichText::new(describe(cmd)).color(c(t.text)));
+                                    }
+                                }
+                                ui.end_row();
+                            }
+                        });
                     });
             });
     }

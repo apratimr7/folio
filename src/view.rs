@@ -12,6 +12,8 @@ pub enum Fit {
     Page,
 }
 
+/// The continuous vertical page layout and the camera over it: zoom, fit mode, scroll position and animation.
+/// Pure geometry, unit-tested without a window.
 pub struct View {
     pub zoom: f32,
     /// Distance from the top of the document to the top of the viewport (screen units).
@@ -226,6 +228,7 @@ impl View {
         let pos = self.pos_at(0.0);
         self.sizes = sizes;
         self.relayout();
+        self.apply_fit();
         self.goto(pos, 0.0, false);
     }
 

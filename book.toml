@@ -1,0 +1,21 @@
+# The documentation site: `mdbook build` (output in target/book), published to GitHub Pages by
+# .github/workflows/docs.yml. The pages are the Markdown files in docs/, so they read the same on GitHub.
+[book]
+title = "folio"
+description = "A keyboard-first PDF reader for technical documents"
+language = "en"
+src = "docs"
+
+[build]
+build-dir = "target/book"
+create-missing = false
+
+[output.html]
+git-repository-url = "https://github.com/apratimr7/folio"
+edit-url-template = "https://github.com/apratimr7/folio/edit/main/{path}"
+site-url = "/folio/"
+default-theme = "navy"
+preferred-dark-theme = "navy"
+
+[output.html.search]
+limit-results = 20

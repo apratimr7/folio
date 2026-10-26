@@ -3,14 +3,20 @@
 mod app;
 mod commands;
 mod config;
+mod dialogs;
 mod doc;
+mod highlights;
 mod ipc;
 mod keymap;
+mod loader;
+mod open_events;
+mod reference;
 mod refs;
 mod render;
 mod script;
 mod session;
 mod store;
+mod tabs;
 #[cfg(test)]
 mod tests;
 mod text;
@@ -25,11 +31,15 @@ const USAGE: &str = "\
 folio — a keyboard-first PDF reader for technical documents
 
 usage:
-  folio [FILE.pdf]                open a document (or the recent list)
+  folio [FILE.pdf...]             open documents, each in a tab (or the recent list); a running folio
+                                  opens them as new tabs, unless --new starts a separate window
   folio --print-config            print the default config.toml
   folio --print-init              print an example init.lua
   folio --init-config             write both into ~/.config/folio/ (won't overwrite)
   folio --list-commands           print every command and its default keys (Markdown)
+  folio --list-config             print every [general] setting and its default (Markdown)
+  folio --list-lua                print the Lua API reference (Markdown)
+  folio --update-docs [DIR]       rewrite the generated tables in the docs (default: ./docs)
   folio --version
   folio --remote CMD...           run commands in the running instance, e.g. --remote 'goto_page 12'
   folio --debug CMD FILE [PAGE]   inspect the backend: render|outline|text|links|refs|search
@@ -44,10 +54,6 @@ fn main() -> Result<()> {
     }
     let args: Vec<String> = std::env::args().skip(1).collect();
     match args.first().map(String::as_str) {
-        Some("-h" | "--help") => {
-            print!("{USAGE}");
-            Ok(())
-        }
         Some("--print-config") => {
             print!("{}", config::DEFAULT_CONFIG);
             Ok(())
@@ -58,51 +64,99 @@ fn main() -> Result<()> {
         }
         Some("--init-config") => init_config(),
         Some("--list-commands") => {
-            list_commands();
+            print!("{}", reference::commands_md());
             Ok(())
         }
-        Some("-V" | "--version") => {
-            println!("{} {}", config::APP_NAME, env!("CARGO_PKG_VERSION"));
+        Some("--list-config") => {
+            print!("{}", reference::config_md());
+            Ok(())
+        }
+        Some("--list-lua") => {
+            for (file, name, table) in reference::blocks().into_iter().filter(|b| b.0 == "SCRIPTING.md") {
+                println!("<!-- {file}: {name} -->\n{table}");
+            }
+            Ok(())
+        }
+        Some("--update-docs") => {
+            let dir = args.get(1).map(PathBuf::from).unwrap_or_else(|| PathBuf::from("docs"));
+            for f in reference::update_docs(&dir)? {
+                println!("updated {f}");
+            }
             Ok(())
         }
         Some("--debug") => debug(&args[1..]),
         Some("--remote") => ipc::send(&args[1..]),
-        Some(flag) if flag.starts_with("--") => bail!("unknown option {flag}\n\n{USAGE}"),
-        path => run(path.map(PathBuf::from)),
+        _ => {
+            // Files, plus flags in any position (`folio paper.pdf --version`).
+            let mut files = Vec::new();
+            let mut new_instance = false;
+            for a in &args {
+                match a.as_str() {
+                    "--new" => new_instance = true,
+                    // Older macOS passes a process serial number when launched from Finder.
+                    psn if psn.starts_with("-psn_") => {}
+                    "-h" | "--help" => {
+                        print!("{USAGE}");
+                        return Ok(());
+                    }
+                    "-V" | "--version" => {
+                        println!("{} {}", config::APP_NAME, env!("CARGO_PKG_VERSION"));
+                        return Ok(());
+                    }
+                    flag if flag.starts_with('-') && flag.len() > 1 => bail!("unknown option {flag}\n\n{USAGE}"),
+                    file => files.push(PathBuf::from(file)),
+                }
+            }
+            // Files that don't exist are reported here; the GUI isn't started for nothing.
+            let given = files.len();
+            files.retain(|f| {
+                let found = f.is_file();
+                if !found {
+                    eprintln!("{}: {}: no such file", config::APP_NAME, f.display());
+                }
+                found
+            });
+            if given > 0 && files.is_empty() {
+                std::process::exit(1);
+            }
+            // A running folio takes the files as new tabs, unless `--new` asks for a separate window.
+            if !files.is_empty() && !new_instance && hand_off(&files) {
+                return Ok(());
+            }
+            run(files)
+        }
     }
 }
 
-fn run(path: Option<PathBuf>) -> Result<()> {
+fn run(files: Vec<PathBuf>) -> Result<()> {
+    open_events::install();
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title(config::APP_NAME)
             .with_app_id(config::APP_NAME)
             .with_inner_size([1100.0, 900.0])
-            .with_min_inner_size([360.0, 300.0]),
+            .with_min_inner_size([360.0, 300.0])
+            .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../packaging/icons/app-256.png")).unwrap_or_default()),
         // Window size and position are restored from eframe's own state file, next to folio's data.
         persist_window: true,
         persistence_path: Some(config::data_dir().join("window.ron")),
         ..Default::default()
     };
-    eframe::run_native(config::APP_NAME, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, path)))))
+    eframe::run_native(config::APP_NAME, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, files)))))
         .map_err(|e| anyhow::anyhow!("{e}"))
 }
 
-/// Markdown table of all built-in commands with their default bindings.
-fn list_commands() {
-    let mut keys: std::collections::BTreeMap<&str, Vec<String>> = Default::default();
-    for (mode, defaults) in [("", keymap::NORMAL_DEFAULTS), ("visual: ", keymap::VISUAL_DEFAULTS)] {
-        for (k, c) in defaults {
-            let name = c.split_whitespace().next().unwrap_or(c);
-            keys.entry(name).or_default().push(format!("{mode}`{}`", k.replace('|', "\\|")));
-        }
+/// Open the files in the running instance, each in a new tab, and bring its window forward. False if there's no
+/// running instance, so this process should open them itself.
+fn hand_off(files: &[PathBuf]) -> bool {
+    let mut commands = Vec::new();
+    for f in files {
+        let p = doc::canonicalize(f).unwrap_or_else(|_| f.clone());
+        commands.push(format!("new_tab {}", p.display()));
     }
-    println!("| command | argument | default keys | description |");
-    println!("|---|---|---|---|");
-    for c in commands::BUILTINS {
-        let k = keys.get(c.name).map(|v| v.join(" ")).unwrap_or_default();
-        println!("| `{}` | {} | {} | {} |", c.name, c.arg.unwrap_or(""), k, c.description);
-    }
+    commands.push("focus_window".into());
+    // Once the running instance has answered, it has the files (and shows any error itself).
+    ipc::deliver(&commands).is_ok()
 }
 
 fn init_config() -> Result<()> {
@@ -174,7 +228,7 @@ fn debug(args: &[String]) -> Result<()> {
         }
         "findref" => {
             // folio --debug findref FILE PAGE  — resolve every reference detected on PAGE.
-            let worker = text::TextWorker::new(PathBuf::from(path), || {});
+            let worker = text::TextWorker::new(PathBuf::from(path), Default::default(), || {});
             let t = d.page_text(page);
             for (i, r) in refs::detect(&t).into_iter().enumerate() {
                 worker.send(text::Request::FindRef {
@@ -190,7 +244,9 @@ fn debug(args: &[String]) -> Result<()> {
                         let line = tt
                             .lines()
                             .into_iter()
-                            .find(|&(s, e)| tt.span_rects(s, e).iter().any(|lr| (lr.y0 - rect.y0).abs() < 2.0))
+                            .find(|&(s, e)| {
+                                tt.span_rects(s, e).iter().any(|lr| lr.y0 <= rect.center_y() && lr.y1 >= rect.center_y())
+                            })
                             .map(|(s, e)| tt.span_text(s, e))
                             .unwrap_or_default();
                         format!("p{} «{}»", p + 1, line.chars().take(70).collect::<String>())

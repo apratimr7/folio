@@ -65,6 +65,9 @@ pub struct DocState {
     pub bookmarks: Vec<Bookmark>,
     #[serde(default)]
     pub highlights: Vec<Highlight>,
+    /// Clockwise view rotation in degrees.
+    #[serde(default)]
+    pub rotation: u16,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -83,6 +86,11 @@ pub struct Global {
     /// Uppercase marks work across documents.
     #[serde(default)]
     pub marks: BTreeMap<char, (PathBuf, DocPos)>,
+    /// The open tabs when folio last quit, for `restore_tabs`.
+    #[serde(default)]
+    pub tabs: Vec<PathBuf>,
+    #[serde(default)]
+    pub active_tab: usize,
 }
 
 pub fn now() -> u64 {

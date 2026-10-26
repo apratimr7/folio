@@ -27,6 +27,13 @@ Page numbers below are 0-based, as in the backend and `--debug`. The `--debug` o
 - Page 5: `Lemma 3.1.` header, and a proof citing `Theorem 1.1` and `Eq. (2.2)`.
 - Page 6: the `References` heading, then entries `[1] A. Alpha, …` to `[6] Z. Zeta, …`, one per line.
 
+## arxiv.pdf (1 page, no hyperref)
+
+- No title in the metadata. The `\maketitle` title is two lines, `Black Hole Entropy from` / `Near-Horizon
+  Microstates`, above the authors and an abstract.
+- The identifier `arXiv:1409.3575v4 [hep-th] 12 Oct 2014` is stamped sideways (20 pt) in the left margin, like
+  arXiv's own stamp.
+
 ## rudin_style.pdf (2 pages, no hyperref)
 
 - Number-first theorem headers: `2.35 Definition.`, `2.36 Theorem.`, `2.37 Corollary.` (page 0), and

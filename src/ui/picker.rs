@@ -10,6 +10,15 @@ use super::style::{c, radius, with_alpha};
 use crate::config::Theme;
 use crate::doc::DocPos;
 
+/// What to do with a highlight, from its menu.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HighlightAction {
+    Note,
+    Copy,
+    Delete,
+    Color(String),
+}
+
 #[derive(Clone, Debug)]
 pub enum PickData {
     Command(String),
@@ -19,6 +28,9 @@ pub enum PickData {
     Bookmark(usize),
     Mark(char),
     Theme(String),
+    /// Index into the tab list.
+    Tab(usize),
+    HighlightAction(usize, HighlightAction),
     Lua(usize, usize),
     None,
 }
@@ -62,6 +74,8 @@ pub enum PickerKind {
     Marks,
     Themes,
     Help,
+    Tabs,
+    HighlightMenu,
     Lua,
 }
 
@@ -86,8 +100,12 @@ pub enum PickerEvent {
     None,
     Close,
     Accept,
+    /// Shift-Enter: open in a new tab (file pickers); elsewhere the same as Enter.
+    AcceptAlt,
     /// Ctrl-D on an item (delete bookmark / highlight).
     Delete,
+    /// Ctrl-E on an item (edit a highlight).
+    Edit,
     /// Tab: complete (used by the file picker).
     Complete,
     QueryChanged,
@@ -198,6 +216,8 @@ impl Picker {
                 ev = PickerEvent::Close;
             } else if i.consume_key(M::NONE, Key::Enter) {
                 ev = PickerEvent::Accept;
+            } else if i.consume_key(M::SHIFT, Key::Enter) {
+                ev = PickerEvent::AcceptAlt;
             } else if i.consume_key(M::NONE, Key::ArrowDown) || i.consume_key(M::CTRL, Key::N) || i.consume_key(M::CTRL, Key::J) {
                 self.move_by(1);
             } else if i.consume_key(M::NONE, Key::ArrowUp) || i.consume_key(M::CTRL, Key::P) || i.consume_key(M::CTRL, Key::K) {
@@ -208,6 +228,8 @@ impl Picker {
                 self.move_by(-10);
             } else if i.consume_key(M::CTRL, Key::D) {
                 ev = PickerEvent::Delete;
+            } else if i.consume_key(M::CTRL, Key::E) {
+                ev = PickerEvent::Edit;
             } else if i.consume_key(M::NONE, Key::Tab) {
                 ev = PickerEvent::Complete;
             }

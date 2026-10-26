@@ -148,3 +148,23 @@ fn default_bindings_have_no_duplicate_keys() {
         }
     }
 }
+
+#[test]
+fn unusable_values_are_reported() {
+    let c = parse(
+        "[general]\nruler_dim = 1.5\nhint_dim = 0.3\n[theme]\naccent = \"notacolor\"\nbg = \"#101014\"\n[theme.highlight]\nred = \"#ff\"\n",
+    );
+    let p = c.problems();
+    assert_eq!(p.len(), 3, "{p:?}");
+    assert!(p[0].contains("ruler_dim") && p[1].contains("theme.accent") && p[2].contains("theme.highlight.red"), "{p:?}");
+    assert!(parse(DEFAULT_CONFIG).problems().is_empty());
+}
+
+#[test]
+fn dim_settings_override_the_theme_defaults() {
+    let mut g = General::default();
+    assert_eq!((g.ruler_dim_alpha(true), g.ruler_dim_alpha(false)), (40, 18));
+    g.ruler_dim = Some(0.0);
+    g.hint_dim = Some(1.0);
+    assert_eq!((g.ruler_dim_alpha(true), g.hint_dim_alpha(false)), (0, 255));
+}

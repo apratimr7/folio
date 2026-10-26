@@ -29,6 +29,8 @@ fn script_with_doc() -> Script {
         theme: "nord".into(),
         outline: Rc::new(doc.outline()),
         highlights: vec![(4, "E = mc2".into(), "yellow".into(), "famous".into())],
+        tab: 2,
+        tab_count: 3,
     });
     s.set_doc(Some(Rc::new(doc)));
     s
@@ -51,7 +53,7 @@ fn effects(s: &Script) -> Vec<String> {
             Effect::Prompt { label, initial, .. } => format!("prompt {label} [{initial}]"),
             Effect::Pick { title, items, .. } => format!("pick {title} {}", items.join(",")),
             Effect::Clipboard(t) => format!("clipboard {t}"),
-            Effect::Open(p) => format!("open {}", p.display()),
+            Effect::Open(p, _) => format!("open {}", p.display()),
             Effect::SetOption(k, v) => format!("set {k}={v}"),
         })
         .collect()
@@ -63,9 +65,9 @@ fn state_reports_the_snapshot_with_one_based_page() {
     let got = eval(
         &s,
         "local t = folio.state() return table.concat({t.path, t.title, t.page, t.page_count, t.zoom, t.mode, \
-         t.selection, tostring(t.search), t.page_mode, t.theme}, '|')",
+         t.selection, tostring(t.search), t.page_mode, t.theme, t.tab, t.tab_count}, '|')",
     );
-    assert_eq!(got, "/papers/refs.pdf|Folio Test Paper|4|7|1.5|normal|selected words|nil|dark|nord");
+    assert_eq!(got, "/papers/refs.pdf|Folio Test Paper|4|7|1.5|normal|selected words|nil|dark|nord|2|3");
 }
 
 #[test]

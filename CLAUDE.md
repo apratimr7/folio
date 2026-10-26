@@ -4,9 +4,19 @@ folio is a keyboard-first PDF reader for technical documents (a sioyek-like tool
 read papers and books and write LaTeX/Typst. Goals: a fully keyboard-centric, clean modern UI that's customizable,
 extensible by scripting (Lua), and designed for research reading. **AI features come next** (see `ROADMAP.md` § 0.3).
 
-Version 0.1.0 plus everything under `[Unreleased]` in `CHANGELOG.md`. Runs on Linux, macOS and Windows.
+Version 0.2.1 (see `CHANGELOG.md`; work since goes under `[Unreleased]`). Runs on Linux, macOS and Windows.
 Branches: `main` is the latest state everyone should use (CI green on all platforms); `dev` is where work happens
 and is merged into `main` once CI passes. The repository is public on GitHub (`apratimr7/folio`) since v0.2.0.
+
+## Status as of 2026-10-26
+
+- **0.2.1** adds tabs (`tabs.rs`, restored on start, files handed to the running window), background opening
+  (`loader.rs`), the system file dialogs (`dialogs.rs`, rfd), Finder opens on macOS (`open_events.rs`), `o` as a key
+  prefix with a key menu, editable highlights (`highlights.rs`), selections across pages, rotation, password
+  prompts, an app icon (`packaging/icons/`), and an mdBook site whose reference tables are generated
+  (`reference.rs`, `folio --update-docs`). `feed_keys` lets `--remote` send keys, so key paths can be tested.
+- Test launches of the GUI must pass `--new`, or `folio FILE` hands the file to whatever folio is running (the
+  user's own instance included).
 
 ## Status as of 2026-10-21
 
@@ -73,7 +83,8 @@ release archive names. A rename still needs, by hand:
 - CI artifact instead of building: `gh run download -n folio-macos-macos-15`, unzip, right-click → Open.
 - Cmd works as Ctrl (`ui/frame.rs::chords()`); Cmd-Q goes through the app menu, so quitting is handled in
   `App::on_exit` too. The remote socket is in `$TMPDIR`; macOS limits socket paths to 104 bytes.
-- Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
+- Finder opens (double-click, Open With, `open -a folio f.pdf`) arrive as `application:openURLs:`, added to
+  `NSObject` in `open_events.rs`; they open as tabs.
 
 ## Working on Windows
 
@@ -89,7 +100,7 @@ cargo test                       # unit + CLI tests on tests/fixtures (docs/TEST
 cargo clippy && cargo fmt        # rustfmt.toml: max_width 130
 cargo build --release
 ./target/debug/folio --debug outline|text|links|refs|findref|search FILE [PAGE|QUERY]   # headless backend checks (PAGE is 0-based)
-./target/debug/folio --list-commands > /tmp/c.md   # regenerate docs/COMMANDS.md body after changing commands
+./target/debug/folio --update-docs                  # refresh the generated tables in docs/ (commands, settings, Lua API)
 ```
 
 ### Testing without the user
@@ -119,8 +130,8 @@ folio --remote 'screenshot /tmp/shot.png'           # PNG of the window's own fr
 folio --remote "lua io.stderr:write(folio.state().page .. '\n')"   # probe state (stderr of the app)
 ```
 
-Keys can't be injected through `--remote`. Test key paths with unit tests in `keymap.rs`, or call the command the
-key maps to. Don't take whole-screen screenshots of the user's desktop, and don't launch windows that steal focus
+Keys can be injected with `folio --remote 'feed_keys gg'` (vim notation); unit tests in `keymap.rs` cover the
+dispatcher. Don't take whole-screen screenshots of the user's desktop, and don't launch windows that steal focus
 while the user is typing. Use the in-app `screenshot` command.
 
 ## Architecture (details in `docs/ARCHITECTURE.md`)
@@ -159,7 +170,8 @@ while the user is typing. Use the in-app `screenshot` command.
 
 - Match the surrounding style: terse doc comments on modules and non-obvious functions, no comment noise.
 - When behavior changes, update `CHANGELOG.md` (under `[Unreleased]`), `TODO.md`, and the relevant `docs/*.md`.
-  Regenerate `docs/COMMANDS.md` with `--list-commands` (keep its header paragraph).
+  Run `folio --update-docs` after changing commands, settings (`config::GENERAL_DOCS`) or the Lua API
+  (`script::LUA_API`, `HOOKS`); `tests/docs.rs` fails until the docs match. The site is `mdbook build` (`book.toml`).
 - Commits end with a `Co-Authored-By: Claude …` line. Ask before pushing.
 
 ## Likely next work

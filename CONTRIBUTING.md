@@ -29,7 +29,8 @@ requests against `dev`.
 - Everything is a named command (`commands.rs` + `App::run_builtin`); a new feature is a command first, then a key.
 - Match the surrounding style: terse doc comments, no comment noise.
 - When behavior changes, update `CHANGELOG.md` (`[Unreleased]`), `TODO.md` and the relevant `docs/*.md`.
-  Regenerate `docs/COMMANDS.md` with `folio --list-commands` after changing commands (keep its header).
+  After changing commands, `[general]` settings or the Lua API, run `folio --update-docs` to refresh the generated
+  tables in `docs/` (a test fails until you do). The documentation site is built with `mdbook build`.
 
 ## License
 

@@ -34,18 +34,39 @@ pub struct SearchState {
     pub jump_on_first: bool,
 }
 
-/// Keyboard/mouse text selection within one page. `anchor` and `cursor` are
-/// inclusive char indices.
+/// A place in the text: a page and a char index on it, ordered by page, then char.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub struct TextPos {
+    pub page: usize,
+    pub idx: usize,
+}
+
+/// Keyboard/mouse text selection. `anchor` and `cursor` are inclusive and can be on different pages.
 #[derive(Clone, Copy, Debug)]
 pub struct Selection {
-    pub page: usize,
-    pub anchor: usize,
-    pub cursor: usize,
+    pub anchor: TextPos,
+    pub cursor: TextPos,
 }
 
 impl Selection {
-    pub fn range(&self) -> (usize, usize) {
-        (self.anchor.min(self.cursor), self.anchor.max(self.cursor) + 1)
+    pub fn on_page(page: usize, anchor: usize, cursor: usize) -> Self {
+        Self { anchor: TextPos { page, idx: anchor }, cursor: TextPos { page, idx: cursor } }
+    }
+
+    /// First and last selected positions.
+    pub fn bounds(&self) -> (TextPos, TextPos) {
+        (self.anchor.min(self.cursor), self.anchor.max(self.cursor))
+    }
+
+    /// The selected chars `[start, end)` on `page`, which has `len` chars, if the selection reaches it.
+    pub fn range_on(&self, page: usize, len: usize) -> Option<(usize, usize)> {
+        let (a, b) = self.bounds();
+        if page < a.page || page > b.page {
+            return None;
+        }
+        let start = if page == a.page { a.idx } else { 0 };
+        let end = if page == b.page { b.idx + 1 } else { len };
+        Some((start.min(len), end.min(len)))
     }
 }
 
@@ -68,6 +89,8 @@ pub enum HintAction {
     Line(usize),
     /// Visual-mode start, second step: a word, as a char range `[start, end)`.
     Word(usize, usize),
+    /// A highlight to edit (index into the document's highlights).
+    Highlight(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +107,8 @@ pub enum HintMode {
     Peek,
     /// Choosing where a visual-mode selection starts: a line, then a word on it.
     Select,
+    /// Choosing a highlight to edit.
+    Edit,
 }
 
 pub struct Hints {
@@ -102,8 +127,12 @@ pub struct Peek {
     pub dest: DocPos,
 }
 
+/// One open document: its backend, view, render and text workers, caches, and per-document state (position,
+/// search, selection, hints, peek, saved highlights and marks). The active tab's session is `App::doc`.
 pub struct Session {
     pub path: PathBuf,
+    /// Rotation and password, for every thread that opens the document. The password is never saved.
+    pub opts: doc::OpenOptions,
     pub title: String,
     pub backend: Rc<dyn Backend>,
     pub view: View,
@@ -152,33 +181,97 @@ fn ends_with_eof(path: &Path, len: u64) -> bool {
     buf.windows(5).any(|w| w == b"%%EOF")
 }
 
+/// A title for documents without one in their metadata (most arXiv preprints): the largest text in the top
+/// half of the first page, with the lines that continue it, if it stands out from the body text.
+pub fn title_from_text(text: &PageText, page_height: f32) -> Option<String> {
+    let median = |mut v: Vec<f32>| {
+        v.sort_by(f32::total_cmp);
+        v.get(v.len() / 2).copied()
+    };
+    let lines: Vec<(usize, usize, f32, Rect)> = text
+        .lines()
+        .into_iter()
+        .filter_map(|(s, e)| {
+            let heights = (s..e).filter(|&i| !text.chars[i].is_whitespace()).map(|i| text.rects[i].height()).collect();
+            let rect = text.span_rects(s, e).into_iter().reduce(|a, b| a.union(&b))?;
+            Some((s, e, median(heights)?, rect))
+        })
+        .collect();
+    let body = median(lines.iter().map(|l| l.2).collect())?;
+    let is_candidate = |&(s, e, _, r): &(usize, usize, f32, Rect)| {
+        let t = text.span_text(s, e);
+        r.y0 < page_height * 0.5 && t.chars().filter(|c| c.is_alphabetic()).count() >= 3 && !t.contains("arXiv")
+    };
+    let top = lines.iter().filter(|l| is_candidate(l)).map(|l| l.2).fold(0.0, f32::max);
+    if top < body * 1.2 {
+        return None;
+    }
+    let first = lines.iter().position(|l| is_candidate(l) && l.2 >= top * 0.95)?;
+    let mut title = Vec::new();
+    let mut prev: Option<Rect> = None;
+    for l in lines[first..].iter().take_while(|l| l.2 >= top * 0.9) {
+        // A continuation line sits right below the previous one.
+        if prev.is_some_and(|p| l.3.y0 - p.y1 > l.2 * 1.5) {
+            break;
+        }
+        title.push(text.span_text(l.0, l.1).trim().to_string());
+        prev = Some(l.3);
+    }
+    let title: String = title.join(" ").chars().take(150).collect();
+    (title.chars().filter(|c| c.is_alphabetic()).count() >= 4).then_some(title)
+}
+
+/// A document read on a background thread: everything slow about opening it (every page's size, the outline,
+/// the title, the saved state), as plain data that can cross threads.
+pub struct Prepared {
+    pub path: PathBuf,
+    pub opts: doc::OpenOptions,
+    pub title: String,
+    pub outline: Vec<OutlineItem>,
+    pub state: DocState,
+}
+
+impl Prepared {
+    pub fn load(path: &Path, password: Option<String>) -> Result<Self> {
+        let path = doc::canonicalize(path)?;
+        let state = DocState::load(&path);
+        let mut opts = doc::OpenOptions { rotation: state.rotation, password, page_bounds: None };
+        let backend = doc::open_with(&path, &opts)?;
+        opts.page_bounds = Some(std::sync::Arc::new(backend.page_bounds()));
+        let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
+        let title = backend
+            .metadata()
+            .title
+            .filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word"))
+            .or_else(|| title_from_text(&backend.page_text(0), backend.page_size(0).1))
+            .unwrap_or(file_name);
+        Ok(Self { outline: backend.outline(), title, state, opts, path })
+    }
+}
+
 pub fn render_colors(theme: &Theme) -> Colors {
     Colors { fg: theme.page_fg, bg: theme.page_bg }
 }
 
 impl Session {
-    pub fn open(path: &Path, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
-        let path = doc::canonicalize(path)?;
-        let backend: Rc<dyn Backend> = Rc::from(doc::open(&path)?);
+    /// Finish opening a document read by [`Prepared::load`]; quick, since the slow parts are done.
+    pub fn from_prepared(p: Prepared, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
+        let Prepared { path, opts, title, outline, state } = p;
+        let backend: Rc<dyn Backend> = Rc::from(doc::open_with(&path, &opts)?);
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
-        let meta = backend.metadata();
-        let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
-        let title =
-            meta.title.filter(|t| t.len() > 3 && !t.ends_with(".dvi") && !t.contains("Microsoft Word")).unwrap_or(file_name);
         let wake = {
             let ctx = ctx.clone();
             move || ctx.request_repaint()
         };
-        let pool = RenderPool::new(path.clone(), cfg.general.render_threads, render_colors(theme), wake.clone());
-        let text = TextWorker::new(path.clone(), wake);
-        let state = DocState::load(&path);
+        let pool = RenderPool::new(path.clone(), opts.clone(), cfg.general.render_threads, render_colors(theme), wake.clone());
+        let text = TextWorker::new(path.clone(), opts.clone(), wake);
         let mut view = View::new(sizes, cfg.general.page_gap);
         if let Some(z) = state.zoom.filter(|_| !state.fit_width) {
             view.fit = Fit::None;
             view.zoom = z;
             view.set_zoom(z, 0.0);
         }
-        let outline = Rc::new(backend.outline());
+        let outline = Rc::new(outline);
         Ok(Self {
             title,
             backend,
@@ -210,6 +303,7 @@ impl Session {
             last_page: usize::MAX,
             first_frame: true,
             path,
+            opts,
         })
     }
 
@@ -233,14 +327,17 @@ impl Session {
 
     /// Reopen the file after it changed on disk (e.g. LaTeX rebuild).
     pub fn reload(&mut self) -> Result<()> {
-        let backend: Rc<dyn Backend> = Rc::from(doc::open(&self.path)?);
+        // The pages may have changed size: read them again, then share them with the workers.
+        self.opts.page_bounds = None;
+        let backend: Rc<dyn Backend> = Rc::from(doc::open_with(&self.path, &self.opts)?);
+        self.opts.page_bounds = Some(std::sync::Arc::new(backend.page_bounds()));
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         self.view.set_sizes(sizes);
         self.outline = Rc::new(backend.outline());
         self.backend = backend;
         self.generation += 1;
-        self.pool.reload(self.generation);
-        self.text.send(crate::text::Request::Reload);
+        self.pool.reload(self.generation, self.opts.clone());
+        self.text.send(crate::text::Request::Reload(self.opts.clone()));
         self.page_texts.clear();
         self.links.clear();
         self.selection = None;
@@ -249,6 +346,29 @@ impl Session {
         if let Some(s) = self.search.take() {
             self.start_search(s.query, s.backward, self.view.pos_at(0.0), false);
         }
+        Ok(())
+    }
+
+    /// Turn the view by `degrees` (a multiple of 90, clockwise), keeping the current page in view. Highlight boxes
+    /// are recomputed from their characters, since they're stored in view coordinates.
+    pub fn rotate(&mut self, degrees: i32) -> Result<()> {
+        let page = self.view.current_page();
+        let before = self.opts.rotation;
+        self.opts.rotation = (before as i32 + degrees).rem_euclid(360) as u16;
+        if let Err(e) = self.reload() {
+            self.opts.rotation = before;
+            return Err(e);
+        }
+        self.state.rotation = self.opts.rotation;
+        let mut highlights = std::mem::take(&mut self.state.highlights);
+        for h in &mut highlights {
+            let t = self.page_text(h.page);
+            h.rects = t.span_rects(h.start, h.end).into_iter().map(Into::into).collect();
+        }
+        self.state.highlights = highlights;
+        self.ruler = None;
+        self.view.goto(DocPos { page, y: 0.0 }, 0.0, false);
+        self.save_state();
         Ok(())
     }
 
@@ -335,9 +455,15 @@ impl Session {
 
     pub fn selection_text(&mut self) -> Option<String> {
         let sel = self.selection?;
-        let text = self.page_text(sel.page);
-        let (s, e) = sel.range();
-        Some(text.span_text(s, e))
+        let (a, b) = sel.bounds();
+        let mut parts = Vec::new();
+        for page in a.page..=b.page {
+            let text = self.page_text(page);
+            if let Some((s, e)) = sel.range_on(page, text.chars.len()) {
+                parts.push(text.span_text(s, e));
+            }
+        }
+        Some(parts.join(" "))
     }
 
     pub fn evict_textures(&mut self, budget: usize) {
@@ -371,6 +497,19 @@ impl Session {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn selection_ranges_per_page() {
+        let at = |page, idx| TextPos { page, idx };
+        // Backwards across three pages: page 2 char 5 back to page 0 char 40.
+        let sel = Selection { anchor: at(2, 5), cursor: at(0, 40) };
+        assert_eq!(sel.bounds(), (at(0, 40), at(2, 5)));
+        assert_eq!(sel.range_on(0, 100), Some((40, 100)));
+        assert_eq!(sel.range_on(1, 80), Some((0, 80)));
+        assert_eq!(sel.range_on(2, 90), Some((0, 6)));
+        assert_eq!(sel.range_on(3, 90), None);
+        assert_eq!(Selection::on_page(4, 7, 3).range_on(4, 50), Some((3, 8)));
+    }
 
     #[test]
     fn eof_marker_near_end() {

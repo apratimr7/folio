@@ -32,10 +32,10 @@ Each is a single self-contained program; nothing else needs to be installed.
 | **macOS**, Apple Silicon (M1–M4) | `folio-…-macos-arm64.zip` | Unzip, move `folio.app` to Applications. The first time, right-click it → *Open* (the app isn't notarized yet). |
 | **macOS**, Intel | `folio-…-macos-x86_64.zip` | Same as above. |
 | **Windows** 10/11 (x86_64) | `folio-…-windows-x86_64.zip` | Unzip anywhere and run `folio.exe`. If SmartScreen says the publisher is unknown: *More info* → *Run anyway*. |
-| **Linux** (x86_64, glibc 2.35+) | `folio-…-linux-x86_64.tar.gz` | `tar xzf folio-*.tar.gz`, then `install -Dm755 folio-*/folio ~/.local/bin/folio` (and optionally the `.desktop` file to `~/.local/share/applications/`). Needs the usual desktop libraries (`libxkbcommon`, OpenGL, Wayland or X11). |
+| **Linux** (x86_64, glibc 2.35+) | `folio-…-linux-x86_64.tar.gz` | `tar xzf folio-*.tar.gz`, then `install -Dm755 folio-*/folio ~/.local/bin/folio` (and optionally the `.desktop` file to `~/.local/share/applications/` and `folio.svg` to `~/.local/share/icons/hicolor/scalable/apps/`, so folio shows up under *Open with*). Needs the usual desktop libraries (`libxkbcommon`, OpenGL, Wayland or X11). |
 
-Open a PDF with `folio paper.pdf` (on macOS: `open -a folio --args paper.pdf`; opening from Finder by double-click
-isn't supported yet), or start `folio` and press `o`. Checksums are in `SHA256SUMS` on the release page.
+Open a PDF with `folio paper.pdf`, from your file manager (*Open With → folio*, or make it the default PDF viewer),
+or start `folio` and press `oo`. A PDF opened while folio is running becomes a new tab in its window. Checksums are in `SHA256SUMS` on the release page.
 
 ## Build from source
 
@@ -63,11 +63,14 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 | `J` `K` `gg` `G` `12gg` `:12` | pages | `t` / `x` | TOC picker / sidebar |
 | `+` `-` `w` `W` | zoom, fit | `f` `F` | follow / peek link |
 | `Ctrl-o` `Ctrl-i` | jump back/forward | `s` `S` | smart reference jump / peek |
-| `m{x}` `'{x}` | marks | `v` → row → word, then `y` `H` `a` | select → copy, highlight, annotate |
+| `m{x}` `'{x}` | marks | `v` → row → word, then `y` `H{color}` `HA` | select → copy, highlight, annotate |
 | `b` `B` `gh` `ge` | bookmarks, highlights, export | `r` | reading ruler |
-| `i` `I` `T` | dark / tinted pages, theme | `o` `O` | open, recent |
+| `i` `I` `T` | dark / tinted pages, theme | `oo` `of` `O` | open (system dialog / type a path), recent |
 
 ## Documentation
+
+The documentation is also a website: **[apratimr7.github.io/folio](https://apratimr7.github.io/folio/)**, starting
+with [Getting started](docs/getting-started.md).
 
 | | |
 |---|---|
@@ -88,7 +91,7 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 - **Linux** (Arch, Hyprland/Wayland): the original platform, tested by hand before the switch to MuPDF and in CI
   since; worth a manual run.
 - **macOS** (Apple Silicon): fully tested by hand (a full test pass, see `docs/testing/`) and in CI. Intel builds in
-  CI. Not yet checked: Retina sharpness, opening from Finder (not implemented yet).
+  CI. Not yet checked: Retina sharpness.
 - **Windows**: new. Builds and passes the test suite in CI; not yet run by hand. Remote control (`--remote`) isn't
   available on Windows yet. Feedback from testers is very welcome.
 
