@@ -684,6 +684,7 @@ impl App {
                     "type a word's label to start selecting there  ·  Esc cancels"
                 }
                 HintMode::Select => "pick a line, then a word  ·  v starts at the top  ·  Esc cancels",
+                HintMode::Edit => "type a highlight's label to edit it  ·  Esc cancels",
             };
             banner(&painter, rect, &theme, label);
         }
@@ -757,8 +758,12 @@ impl App {
                 }
             }
         } else if resp.secondary_clicked() {
-            // Right click previews internal links.
+            // Right click on a highlight opens its menu; on an internal link, a preview.
             let Some((page, x, y)) = resp.interact_pointer_pos().and_then(|p| to_doc(d, p)) else { return };
+            if let Some(i) = self.highlight_at(page, x, y) {
+                return self.open_highlight_menu(i);
+            }
+            let Some(d) = &mut self.doc else { return };
             let link =
                 d.page_links(page).iter().find(|l| x >= l.rect.x0 && x <= l.rect.x1 && y >= l.rect.y0 && y <= l.rect.y1).cloned();
             if let Some(doc::LinkTarget::Page(pos)) = link.map(|l| l.target) {

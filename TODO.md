@@ -32,7 +32,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       extending (only `o` swaps ends): caret mode is listed as optional under Later.
 - [ ] **Lua API gaps:**
   - [ ] Bookmarks and marks: read, add, delete (`folio.bookmarks()`, `folio.marks()`, …).
-  - [ ] Highlights: delete and recolor, plus create directly instead of only via `exec`.
+  - [ ] Highlights: create directly instead of only via `exec` (delete, recolor and notes: the
+        `delete_highlight`/`highlight_color`/`highlight_note N` commands).
   - [ ] Timers: `folio.defer(ms, fn)` / `folio.every(ms, fn)`.
   - [ ] Read config values (`folio.get(option)`), not only set them.
   - [ ] Positions: text with boxes (`folio.page_words(n)` → `{text, x0, y0, x1, y1}`), the current scroll position,
@@ -265,7 +266,8 @@ starting):
 - [ ] Presentation mode (one page, fit page, no chrome).
 - [ ] SyncTeX: forward search via `--remote 'synctex file.tex:line'` and inverse search to an editor command.
 - [ ] Cross-page and column-aware selection (MuPDF's reading order already follows columns).
-- [ ] Highlight editing: change color, edit note, delete under cursor.
+- [x] Highlight editing: `gH` hints (or right-click, or `Ctrl-e` in `gh`) open a menu: note, copy, delete, color;
+      `highlight_color`/`highlight_note`/`delete_highlight N` commands.
 - [ ] Search options: regex, whole word, search within the current section.
 - [ ] Persistent search history and command history.
 - [ ] Portals (sioyek-style): link a place in the text to another (e.g. a figure) and keep it in a side view.

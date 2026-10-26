@@ -10,6 +10,15 @@ use super::style::{c, radius, with_alpha};
 use crate::config::Theme;
 use crate::doc::DocPos;
 
+/// What to do with a highlight, from its menu.
+#[derive(Clone, Debug, PartialEq)]
+pub enum HighlightAction {
+    Note,
+    Copy,
+    Delete,
+    Color(String),
+}
+
 #[derive(Clone, Debug)]
 pub enum PickData {
     Command(String),
@@ -21,6 +30,7 @@ pub enum PickData {
     Theme(String),
     /// Index into the tab list.
     Tab(usize),
+    HighlightAction(usize, HighlightAction),
     Lua(usize, usize),
     None,
 }
@@ -65,6 +75,7 @@ pub enum PickerKind {
     Themes,
     Help,
     Tabs,
+    HighlightMenu,
     Lua,
 }
 
@@ -93,6 +104,8 @@ pub enum PickerEvent {
     AcceptAlt,
     /// Ctrl-D on an item (delete bookmark / highlight).
     Delete,
+    /// Ctrl-E on an item (edit a highlight).
+    Edit,
     /// Tab: complete (used by the file picker).
     Complete,
     QueryChanged,
@@ -215,6 +228,8 @@ impl Picker {
                 self.move_by(-10);
             } else if i.consume_key(M::CTRL, Key::D) {
                 ev = PickerEvent::Delete;
+            } else if i.consume_key(M::CTRL, Key::E) {
+                ev = PickerEvent::Edit;
             } else if i.consume_key(M::NONE, Key::Tab) {
                 ev = PickerEvent::Complete;
             }

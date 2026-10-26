@@ -446,6 +446,7 @@ pub const NORMAL_DEFAULTS: &[(&str, &str)] = &[
     ("Y", "yank_page"),
     ("H", "highlight"),
     ("gh", "highlights"),
+    ("gH", "edit_highlight"),
     ("r", "toggle_ruler"),
     ("R", "reload"),
     (">", "rotate"),

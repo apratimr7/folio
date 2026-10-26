@@ -109,9 +109,13 @@ or the reading ruler is on, `v` starts there right away, without labels. Then:
 Navigation keys from normal mode (`Ctrl-d`, `J`, …) still work in visual mode.
 With the mouse: drag to select, double-click to select a word, click to clear.
 
-`Y` copies the whole current page. `gh` lists highlights (`Enter` jumps, `Ctrl-d` deletes), and `ge`
-exports all highlights, notes and bookmarks as Markdown to the clipboard and the text panel.
+`Y` copies the whole current page. `gh` lists highlights (`Enter` jumps, `Ctrl-e` edits, `Ctrl-d` deletes), and
+`ge` exports all highlights, notes and bookmarks as Markdown to the clipboard and the text panel (`gE` to a file).
 Highlights and notes are saved per document.
+
+**Editing a highlight:** `gH` labels the highlights on screen; type one's label (or right-click a highlight) to open
+its menu: edit the note, copy the text, delete it, or change its color. From Lua or `--remote`, `highlight_color 2
+green`, `highlight_note 2 text` and `delete_highlight 2` act on highlight 2 as numbered in the `gh` list.
 
 ## Bookmarks
 

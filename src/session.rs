@@ -68,6 +68,8 @@ pub enum HintAction {
     Line(usize),
     /// Visual-mode start, second step: a word, as a char range `[start, end)`.
     Word(usize, usize),
+    /// A highlight to edit (index into the document's highlights).
+    Highlight(usize),
 }
 
 #[derive(Clone, Debug)]
@@ -84,6 +86,8 @@ pub enum HintMode {
     Peek,
     /// Choosing where a visual-mode selection starts: a line, then a word on it.
     Select,
+    /// Choosing a highlight to edit.
+    Edit,
 }
 
 pub struct Hints {

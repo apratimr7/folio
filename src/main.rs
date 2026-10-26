@@ -5,6 +5,7 @@ mod commands;
 mod config;
 mod dialogs;
 mod doc;
+mod highlights;
 mod ipc;
 mod keymap;
 mod open_events;

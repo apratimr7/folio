@@ -6,6 +6,9 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **Editing highlights.** `gH` labels the highlights on screen; picking one (or right-clicking a highlight, or
+  `Ctrl-e` in the `gh` list) opens a menu to edit its note, copy it, delete it or change its color. Commands
+  `highlight_color N COLOR`, `highlight_note N TEXT` and `delete_highlight N` do the same from Lua and `--remote`.
 - **Opening from the file manager.** On macOS, double-clicking a PDF in Finder, *Open With → folio* and
   `open -a folio paper.pdf` now open the file (as a new tab when folio is running), so folio can be the default PDF
   viewer. The Linux `.desktop` file takes several files and has an icon.

@@ -45,6 +45,8 @@ pub enum PromptKind {
     Annotate,
     /// The password for a protected document; the text is masked.
     Password(PathBuf),
+    /// The note of an existing highlight.
+    HighlightNote(usize),
 }
 
 pub struct Prompt {
@@ -782,7 +784,7 @@ impl App {
         true
     }
 
-    fn ask(&mut self, label: &str, kind: PromptKind, initial: String) {
+    pub(crate) fn ask(&mut self, label: &str, kind: PromptKind, initial: String) {
         let origin = self.doc.as_ref().map(|d| d.view.pos_at(0.0));
         self.prompt = Some(Prompt { label: label.to_string(), text: initial, kind, origin, history_idx: None });
     }
@@ -1275,6 +1277,11 @@ impl App {
                 self.add_highlight(color, note);
             }
             "highlights" => self.open_highlights(),
+            "edit_highlight" => self.start_highlight_hints(),
+            "delete_highlight" | "highlight_color" | "highlight_note" => {
+                let (name, args) = (name.to_string(), args.to_string());
+                self.highlight_command(&name, &args);
+            }
             "export_highlights" if !args.is_empty() => {
                 let path = shellexpand(args);
                 self.write_highlights(&path);
@@ -1602,7 +1609,7 @@ impl App {
         self.show_hints(mode, items, "No references on screen");
     }
 
-    fn show_hints(&mut self, mode: HintMode, mut items: Vec<HintItem>, empty: &str) {
+    pub(crate) fn show_hints(&mut self, mode: HintMode, mut items: Vec<HintItem>, empty: &str) {
         if items.is_empty() {
             return self.notify(empty);
         }
@@ -1629,7 +1636,7 @@ impl App {
         }
         if matches.len() == 1 && matches[0].label == h.typed {
             let item = matches[0].clone();
-            let mode = if peek_override && h.mode != HintMode::Select { HintMode::Peek } else { h.mode };
+            let mode = if peek_override && matches!(h.mode, HintMode::Jump | HintMode::Peek) { HintMode::Peek } else { h.mode };
             d.hints = None;
             self.activate_hint(item, mode);
         }
@@ -1655,6 +1662,7 @@ impl App {
                 let page = item.page;
                 self.start_word_hints(page, line);
             }
+            HintAction::Highlight(i) => self.open_highlight_menu(i),
             HintAction::Word(start, end) => {
                 d.selection = Some(Selection { page: item.page, anchor: start, cursor: end.saturating_sub(1) });
                 self.mode = Mode::Visual;
@@ -1816,7 +1824,7 @@ impl App {
         if items.is_empty() {
             return self.notify("No highlights yet (v to select, H to highlight)");
         }
-        self.picker = Some(Picker::new(PickerKind::Highlights, "Highlights  ·  Ctrl-D deletes", items));
+        self.picker = Some(Picker::new(PickerKind::Highlights, "Highlights  ·  Ctrl-E edits  ·  Ctrl-D deletes", items));
     }
 
     fn open_marks(&mut self) {
@@ -1959,6 +1967,12 @@ impl App {
                     _ => {}
                 }
             }
+            PickerEvent::Edit => {
+                if let (PickerKind::Highlights, Some(PickData::Highlight(i))) = (p.kind, p.current().map(|i| i.data.clone())) {
+                    self.picker = None;
+                    self.open_highlight_menu(i);
+                }
+            }
             PickerEvent::AcceptAlt if matches!(p.kind, PickerKind::Files | PickerKind::Recent) => {
                 let path = match p.current().map(|i| i.data.clone()) {
                     Some(PickData::Path(path)) if path.is_file() => path,
@@ -2047,6 +2061,7 @@ impl App {
             PickData::Mark(c) => self.run_line(&format!("goto_mark {c}"), None),
             PickData::Theme(t) => self.set_theme(&t),
             PickData::Tab(i) => self.switch_tab(i),
+            PickData::HighlightAction(i, action) => self.highlight_action(i, action),
             PickData::Lua(..) => {} // handled in picker_event, which still has the label
             PickData::None => {}
         }
@@ -2104,6 +2119,7 @@ impl App {
             PromptKind::Bookmark => {
                 self.run_line(&format!("add_bookmark {}", if text.is_empty() { "Bookmark" } else { &text }), None)
             }
+            PromptKind::HighlightNote(i) => self.edit_highlight(i, |h| Some(store::Highlight { note: text, ..h })),
             PromptKind::Password(path) => {
                 if !text.is_empty() {
                     self.open_with_password(&path, Some(p.text));
