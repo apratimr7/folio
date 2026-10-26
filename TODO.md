@@ -122,8 +122,8 @@ Low:
 - [ ] **Opening and managing files** (review, 2026-10-21; do the first three together with the native dialog):
   - [ ] Open from the file manager: macOS Finder (`odoc`, see Known issues) and a Linux `.desktop` file so folio
         appears under "Open with" (see Packaging in Next up).
-  - [ ] Single instance: `folio other.pdf` while folio is running hands the file to the open window (over the
-        remote socket) instead of starting a second one; a flag to force a new window.
+  - [x] Single instance: `folio other.pdf` while folio is running opens it as a new tab there (over the remote
+        socket; Unix only until Windows has remote control); `--new` starts a separate window.
   - [ ] Open by URL or arXiv ID: `open_url`-style command that downloads a pasted `arxiv.org`/PDF link or an ID
         like `1409.3575`, saves it to a configurable folder and opens it.
   - [x] Better titles in the recent list: arXiv files show their file name ("1409.3575v4.pdf") because the PDF
@@ -133,8 +133,7 @@ Low:
   - [ ] Library search: a fuzzy picker over every PDF in configured folders (e.g. `library = ["~/Papers"]`),
         indexed in the background, so any paper opens from a few letters of its name.
   - [ ] Folder shortcuts in the keyboard file picker (home, Downloads, configured library folders).
-  - [x] Switch back to the previous document (`alternate_file`, `<C-6>`/`<C-^>` like vim) until tabs exist (see "New window
-        and new tab" in Next up).
+  - [x] Switch back to the previous document (`alternate_file`, `<C-6>`/`<C-^>` like vim).
   - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
         "open the new document off the UI thread").
   - [x] Save dialogs: `gE`/`save_highlights` saves highlights as Markdown (`export_highlights PATH` writes
@@ -243,9 +242,10 @@ starting):
 
 ## Next up
 
-- [ ] **New window and new tab.** Open another document (or the same one) in a new window or a tab, with
-      commands for both (`new_window`, `new_tab`, `next_tab`/`prev_tab`, `close_tab`) and keys. `--remote` and
-      Lua need to address a window/tab. ROADMAP "Later" also lists a split view of the same document.
+- [x] **Tabs** (2026-10-26): `new_tab`, `close_tab`, `next_tab`/`prev_tab`, `goto_tab`, `tabs`, `reopen_tab`; a tab bar;
+      restored on start (`restore_tabs`); `folio FILE` hands files to the running window.
+  - [ ] New window (a second viewport) and a split view of the same document (ROADMAP "Later").
+  - [ ] `--remote`/Lua addressing a specific tab (today they act on the active one); `folio.tabs()`.
 - [x] **Windows build.** Builds and tests in CI (`windows-latest`, MSVC) and uploads a zipped `folio.exe`
       (`scripts/build-windows.ps1`). Config in `%APPDATA%\folio`, data in `%LOCALAPPDATA%\folio`. Follow-ups:
   - [ ] First manual runs on real Windows machines (first testers): rendering, fonts (Segoe UI fallback),

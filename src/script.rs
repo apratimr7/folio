@@ -71,6 +71,9 @@ pub struct Snapshot {
     pub theme: String,
     pub outline: Rc<Vec<OutlineItem>>,
     pub highlights: Vec<(usize, String, String, String)>,
+    /// 1-based index of the active tab (0 without a document) and the number of tabs.
+    pub tab: usize,
+    pub tab_count: usize,
 }
 
 pub struct ScriptCommand {
@@ -343,6 +346,8 @@ fn install_api(
                 t.set("selection", snap.selection.clone())?;
                 t.set("search", snap.search.clone())?;
                 t.set("page_mode", snap.page_mode.clone())?;
+                t.set("tab", snap.tab)?;
+                t.set("tab_count", snap.tab_count)?;
                 t.set("theme", snap.theme.clone())?;
                 Ok(t)
             })?,

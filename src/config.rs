@@ -19,6 +19,16 @@ pub enum PageMode {
     Custom,
 }
 
+/// When the tab bar is shown.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TabBar {
+    /// With two or more tabs.
+    Auto,
+    Always,
+    Never,
+}
+
 #[derive(Clone, Debug, Deserialize)]
 #[serde(default)]
 pub struct General {
@@ -48,6 +58,9 @@ pub struct General {
     pub ruler_dim: Option<f32>,
     /// How dark the page gets around the row whose words are being labeled (`v`). Unset: theme-dependent.
     pub hint_dim: Option<f32>,
+    /// Reopen the last session's tabs when started.
+    pub restore_tabs: bool,
+    pub tab_bar: TabBar,
 }
 
 impl General {
@@ -86,6 +99,8 @@ impl Default for General {
             smooth_scroll: true,
             ruler_dim: None,
             hint_dim: None,
+            restore_tabs: true,
+            tab_bar: TabBar::Auto,
         }
     }
 }

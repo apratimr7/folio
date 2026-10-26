@@ -33,6 +33,8 @@ for the window size and position. The files are plain text, so they're easy to b
 | `page_gap` | `14` | space between pages |
 | `auto_reload` | `true` | reload when the file changes |
 | `restore_position` | `true` | reopen documents where you left off |
+| `restore_tabs` | `true` | reopen the last session's tabs when folio starts |
+| `tab_bar` | `"auto"` | `auto` (shown with two or more tabs), `always`, `never` |
 | `render_threads` | `2` | background render workers |
 | `render_oversample` | `1.0` | render above screen density (sharper, more memory) |
 | `hint_chars` | `"asdfghjklqwertyuiop"` | alphabet for hint labels (any typeable characters, e.g. `"jkl;"`) |

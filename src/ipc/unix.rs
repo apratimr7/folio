@@ -114,8 +114,27 @@ fn serve(listener: UnixListener, tx: Sender<Request>, wake: impl Fn()) {
     }
 }
 
-/// Client side of `folio --remote`.
+/// Client side of `folio --remote`: print output, report errors, and exit with status 1 if a command failed.
 pub fn send(commands: &[String]) -> Result<()> {
+    let mut failed = 0;
+    for reply in deliver(commands)? {
+        match reply {
+            Reply::Ok(out) if !out.is_empty() => println!("{out}"),
+            Reply::Ok(_) => {}
+            Reply::Err(e) => {
+                eprintln!("{APP_NAME}: {e}");
+                failed += 1;
+            }
+        }
+    }
+    if failed > 0 {
+        std::process::exit(1);
+    }
+    Ok(())
+}
+
+/// Send command lines to the running instance and collect one reply per line. Fails if none is running.
+pub fn deliver(commands: &[String]) -> Result<Vec<Reply>> {
     let explicit = std::env::var_os(socket_env()).map(PathBuf::from);
     let path = explicit.clone().unwrap_or_else(default_socket);
     let mut stream = match UnixStream::connect(&path) {
@@ -131,22 +150,7 @@ pub fn send(commands: &[String]) -> Result<()> {
         stream.write_all(b"\n")?;
     }
     stream.shutdown(std::net::Shutdown::Write)?;
-    // One reply per command: print output, report errors, and fail if any command did.
-    let mut failed = 0;
-    for line in BufReader::new(stream).lines() {
-        match Reply::decode(&line?) {
-            Reply::Ok(out) if !out.is_empty() => println!("{out}"),
-            Reply::Ok(_) => {}
-            Reply::Err(e) => {
-                eprintln!("{APP_NAME}: {e}");
-                failed += 1;
-            }
-        }
-    }
-    if failed > 0 {
-        std::process::exit(1);
-    }
-    Ok(())
+    BufReader::new(stream).lines().map(|l| Ok(Reply::decode(&l?))).collect()
 }
 
 /// `FOLIO_SOCKET` (upper-case program name): targets a specific instance.

@@ -141,7 +141,26 @@ line by line, across pages, and the view scrolls to keep it in a comfortable spo
 | `of` | the keyboard file picker: type to filter, `Tab` completes, `Enter` on a directory descends into it, and you can type or paste a full path |
 | `or` or `O` | recent documents |
 
-Dropping a PDF on the window opens it too. On Linux the system dialog needs the XDG desktop portal (GNOME, KDE and
+Dropping PDFs on the window opens them in new tabs.
+
+## Tabs
+
+Several documents can be open in one window, each in a tab with its own position, search and selection. The tab
+bar appears once there are two tabs (setting `tab_bar`).
+
+| keys | |
+|---|---|
+| `ot` or `Ctrl-t` | open a document in a new tab (system dialog) |
+| `Shift-Enter` | in the file picker (`of`) or the recent list (`O`): open in a new tab instead of this one |
+| `gt` `gT`, `Ctrl-Tab` `Ctrl-Shift-Tab` | next / previous tab |
+| `Alt-1` … `Alt-9`, `:goto_tab N` | go to tab N |
+| `gb` | list the tabs (`Ctrl-d` closes one) |
+| `Ctrl-w` | close the tab |
+| `Ctrl-Shift-t` | reopen the last closed tab |
+
+Opening a document that's already open switches to its tab. `folio paper.pdf` while folio is running opens the
+paper as a new tab in that window (`folio --new paper.pdf` starts a separate one). When folio starts, the tabs of
+the last session come back (setting `restore_tabs`); only the visible one is loaded until you switch to the others. On Linux the system dialog needs the XDG desktop portal (GNOME, KDE and
 most desktops have it); use `of` where it's missing.
 Position, zoom, marks, highlights and bookmarks are restored when you reopen a file. In the recent list,
 `Ctrl-d` removes an entry. `ge` copies your highlights and notes as Markdown, `gE` saves them to a file.

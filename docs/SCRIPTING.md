@@ -60,7 +60,7 @@ folio.on(event, function(arg) ... end)
 
 | function | returns |
 |---|---|
-| `folio.state()` | `{ path, title, page, page_count, zoom, mode, selection, search, page_mode, theme }` |
+| `folio.state()` | `{ path, title, page, page_count, zoom, mode, selection, search, page_mode, theme, tab, tab_count }` (`tab` is 1-based) |
 | `folio.selection()` | selected text or `nil` |
 | `folio.page_text(n?)` | text of page `n` (default: current), words re-joined across hyphenated line breaks; `nil` outside `1..page_count` |
 | `folio.outline()` | `{ { title, depth, page }, ... }` |

@@ -12,6 +12,7 @@ mod render;
 mod script;
 mod session;
 mod store;
+mod tabs;
 #[cfg(test)]
 mod tests;
 mod text;
@@ -26,7 +27,8 @@ const USAGE: &str = "\
 folio — a keyboard-first PDF reader for technical documents
 
 usage:
-  folio [FILE.pdf]                open a document (or the recent list)
+  folio [FILE.pdf...]             open documents, each in a tab (or the recent list); a running folio
+                                  opens them as new tabs, unless --new starts a separate window
   folio --print-config            print the default config.toml
   folio --print-init              print an example init.lua
   folio --init-config             write both into ~/.config/folio/ (won't overwrite)
@@ -63,8 +65,10 @@ fn main() -> Result<()> {
         _ => {
             // Files, plus flags in any position (`folio paper.pdf --version`).
             let mut files = Vec::new();
+            let mut new_instance = false;
             for a in &args {
                 match a.as_str() {
+                    "--new" => new_instance = true,
                     "-h" | "--help" => {
                         print!("{USAGE}");
                         return Ok(());
@@ -77,12 +81,16 @@ fn main() -> Result<()> {
                     file => files.push(PathBuf::from(file)),
                 }
             }
-            run(files.into_iter().next())
+            // A running folio takes the files as new tabs, unless `--new` asks for a separate window.
+            if !files.is_empty() && !new_instance && hand_off(&files) {
+                return Ok(());
+            }
+            run(files)
         }
     }
 }
 
-fn run(path: Option<PathBuf>) -> Result<()> {
+fn run(files: Vec<PathBuf>) -> Result<()> {
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title(config::APP_NAME)
@@ -94,8 +102,22 @@ fn run(path: Option<PathBuf>) -> Result<()> {
         persistence_path: Some(config::data_dir().join("window.ron")),
         ..Default::default()
     };
-    eframe::run_native(config::APP_NAME, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, path)))))
+    eframe::run_native(config::APP_NAME, options, Box::new(move |cc| Ok(Box::new(app::App::new(cc, files)))))
         .map_err(|e| anyhow::anyhow!("{e}"))
+}
+
+/// Open the files in the running instance, each in a new tab, and bring its window forward. False if there's no
+/// running instance (or it refused), so this process should open them itself.
+fn hand_off(files: &[PathBuf]) -> bool {
+    let mut commands = Vec::new();
+    for f in files {
+        match doc::canonicalize(f) {
+            Ok(p) => commands.push(format!("new_tab {}", p.display())),
+            Err(_) => return false, // let the GUI report the missing file
+        }
+    }
+    commands.push("focus_window".into());
+    ipc::deliver(&commands).is_ok_and(|replies| replies.iter().all(|r| matches!(r, ipc::Reply::Ok(_))))
 }
 
 /// Markdown table of all built-in commands with their default bindings.

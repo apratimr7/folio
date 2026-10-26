@@ -6,6 +6,13 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **Tabs.** Several documents in one window: `ot`/`Ctrl-t` opens one in a new tab, `gt`/`gT` (`Ctrl-Tab`) switch,
+  `Alt-1`…`Alt-9` jump, `gb` lists them, `Ctrl-w` closes, `Ctrl-Shift-t` reopens. `Shift-Enter` in the file picker
+  and recent list opens in a new tab, dropped files open in new tabs, and opening a document that's already open
+  switches to its tab. The tab bar shows with two or more tabs (`tab_bar`), and the last session's tabs come back
+  on start (`restore_tabs`; background tabs load when first shown). `folio.state()` has `tab` and `tab_count`.
+- `folio paper.pdf` while folio is running opens the paper as a new tab in that window (Linux, macOS);
+  `folio --new paper.pdf` starts a separate window. Several files on the command line open as tabs.
 - **The system's file dialog** for opening documents: `oo` (`open_dialog`). `o` is now a key prefix: `oo` dialog,
   `of` keyboard file picker (what `o` used to open), `or` recent documents (`O` still works too).
 - **A key menu**: after a key prefix (`o`, `g`, `z`…) a small panel lists the keys that can follow and what they do.

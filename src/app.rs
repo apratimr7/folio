@@ -98,6 +98,11 @@ pub struct App {
     /// The latest selection and when it changed, for the debounced `selection_done` hook.
     pub selection_settling: Option<(String, Instant)>,
     pub dialogs: crate::dialogs::Dialogs,
+    /// Open documents in tab order; the active one's slot is `Tab::Active` and its session is `doc`.
+    pub tabs: Vec<crate::tabs::Tab>,
+    pub active_tab: usize,
+    /// Recently closed tabs, newest last.
+    pub closed_tabs: Vec<PathBuf>,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -193,7 +198,7 @@ fn hint_labels(n: usize, chars: &str) -> Vec<String> {
 }
 
 impl App {
-    pub fn new(cc: &eframe::CreationContext<'_>, path: Option<PathBuf>) -> Self {
+    pub fn new(cc: &eframe::CreationContext<'_>, files: Vec<PathBuf>) -> Self {
         let ctx = cc.egui_ctx.clone();
         let mut toasts = Vec::new();
         let cfg = match Config::load() {
@@ -237,6 +242,9 @@ impl App {
             remote_out: None,
             selection_settling: None,
             dialogs: crate::dialogs::Dialogs::new(),
+            tabs: Vec::new(),
+            active_tab: 0,
+            closed_tabs: Vec::new(),
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -251,11 +259,22 @@ impl App {
         }
         close_on_signals(&app.ctx);
         app.load_script();
-        match path {
-            Some(p) => app.open(&p),
-            None => app.open_recent_picker(),
-        }
+        app.open_startup_files(files);
         app
+    }
+
+    /// The last session's tabs (if `restore_tabs`), then the files given, each in its own tab. With neither,
+    /// the recent list.
+    pub fn open_startup_files(&mut self, files: Vec<PathBuf>) {
+        if self.cfg.general.restore_tabs {
+            self.restore_tabs();
+        }
+        for f in &files {
+            self.open_in_new_tab(f);
+        }
+        if self.doc.is_none() && self.prompt.is_none() {
+            self.open_recent_picker();
+        }
     }
 
     pub fn notify(&mut self, text: impl Into<String>) {
@@ -331,12 +350,13 @@ impl App {
         style::apply(&self.ctx, &self.theme, &self.cfg.general);
         self.keymaps = build_keymaps(&self.cfg, &mut self.toasts);
         self.show_statusbar = self.cfg.general.statusbar;
-        if let Some(d) = &mut self.doc {
-            d.pool.set_colors(render_colors(&self.theme));
-            d.view.set_gap(self.cfg.general.page_gap);
+        let (colors, gap) = (render_colors(&self.theme), self.cfg.general.page_gap);
+        self.for_each_session(|d| {
+            d.pool.set_colors(colors);
+            d.view.set_gap(gap);
             d.textures.clear();
             d.tex_bytes = 0;
-        }
+        });
         self.load_script();
         self.sync_script_doc();
         self.notify("Configuration reloaded");
@@ -351,6 +371,10 @@ impl App {
 
     /// Open a document; a protected one asks for its password first.
     pub fn open_with_password(&mut self, path: &Path, password: Option<String>) {
+        // Already open in another tab: show that one.
+        if self.switch_if_open(path) {
+            return;
+        }
         if let Some(d) = &mut self.doc {
             d.save_state();
         }
@@ -359,7 +383,7 @@ impl App {
                 self.global.touch_recent(&s.path, &s.title, s.state.pos.map(|p| p.page).unwrap_or(0));
                 self.global.save();
                 self.ctx.send_viewport_cmd(egui::ViewportCommand::Title(format!("{} — {}", s.title, config::APP_NAME)));
-                self.doc = Some(s);
+                self.place_in_current_tab(s);
                 self.mode = Mode::Normal;
                 self.picker = None;
                 self.sync_script_doc();
@@ -379,7 +403,7 @@ impl App {
         }
     }
 
-    fn sync_script_doc(&self) {
+    pub(crate) fn sync_script_doc(&self) {
         if let Some(s) = &self.script {
             s.set_doc(self.doc.as_ref().map(|d| d.backend.clone()));
         }
@@ -391,6 +415,7 @@ impl App {
             let page = d.view.current_page();
             self.global.touch_recent(&d.path.clone(), &d.title.clone(), page);
         }
+        self.save_tabs();
         self.global.save();
     }
 
@@ -421,7 +446,8 @@ impl App {
     pub fn snapshot(&mut self) -> Snapshot {
         let mode = self.state_mode().to_string();
         let theme = self.theme.name.clone();
-        let Some(d) = &mut self.doc else { return Snapshot { mode, theme, ..Default::default() } };
+        let (tab, tab_count) = (if self.doc.is_some() { self.active_tab + 1 } else { 0 }, self.tabs.len());
+        let Some(d) = &mut self.doc else { return Snapshot { mode, theme, tab, tab_count, ..Default::default() } };
         Snapshot {
             path: d.path.to_string_lossy().to_string(),
             title: d.title.clone(),
@@ -435,6 +461,8 @@ impl App {
             theme,
             outline: d.outline.clone(),
             highlights: d.state.highlights.iter().map(|h| (h.page, h.text.clone(), h.color.clone(), h.note.clone())).collect(),
+            tab,
+            tab_count,
         }
     }
 
@@ -631,13 +659,14 @@ impl App {
 
     fn apply_theme(&mut self) {
         style::apply(&self.ctx, &self.theme, &self.cfg.general);
-        if let Some(d) = &mut self.doc {
-            d.pool.set_colors(render_colors(&self.theme));
+        let colors = render_colors(&self.theme);
+        self.for_each_session(|d| {
+            d.pool.set_colors(colors);
             if d.page_mode != PageMode::Normal {
                 d.textures.clear();
                 d.tex_bytes = 0;
             }
-        }
+        });
     }
 
     // ------------------------------------------------------------------
@@ -769,6 +798,40 @@ impl App {
                 return self.open(&p);
             }
             "open_dialog" => return self.open_dialog(false),
+            "new_tab" => {
+                if args.is_empty() {
+                    return self.open_dialog(true);
+                }
+                let p = shellexpand(args);
+                return self.open_in_new_tab(&p);
+            }
+            "close_tab" => {
+                let i = if args.is_empty() { self.active_tab } else { args.parse::<usize>().unwrap_or(0).wrapping_sub(1) };
+                if i >= self.tabs.len() {
+                    return self.warn(format!("No tab '{args}'"));
+                }
+                return self.close_tab(i);
+            }
+            "next_tab" | "prev_tab" => {
+                let n = self.tabs.len();
+                if n > 1 {
+                    let step = count.unwrap_or(1) as usize % n;
+                    let i = if name == "next_tab" { (self.active_tab + step) % n } else { (self.active_tab + n - step) % n };
+                    self.switch_tab(i);
+                }
+                return;
+            }
+            "goto_tab" => {
+                let Some(i) = args.parse::<usize>().ok().or(count.map(|c| c as usize)).and_then(|i| i.checked_sub(1)) else {
+                    return self.warn("goto_tab: which tab? (1, 2, …)");
+                };
+                if i >= self.tabs.len() {
+                    return self.warn(format!("No tab {}", i + 1));
+                }
+                return self.switch_tab(i);
+            }
+            "tabs" => return self.open_tabs_picker(),
+            "reopen_tab" => return self.reopen_tab(),
             "recent_files" => return self.open_recent_picker(),
             "alternate_file" => {
                 // The document opened before this one, like vim's alternate file.
@@ -815,6 +878,11 @@ impl App {
                 if self.text_panel.visible && self.text_panel.title.is_empty() {
                     self.text_panel.title = "Notes".into();
                 }
+                return;
+            }
+            "focus_window" => {
+                self.ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+                self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
                 return;
             }
             "fullscreen" => {
@@ -1288,7 +1356,8 @@ impl App {
         let chosen: Vec<_> = self.dialogs.rx.try_iter().collect();
         for (purpose, path) in chosen {
             match purpose {
-                Purpose::Open { .. } => self.open(&path),
+                Purpose::Open { new_tab: true } => self.open_in_new_tab(&path),
+                Purpose::Open { new_tab: false } => self.open(&path),
                 Purpose::ExportHighlights => self.write_highlights(&path),
                 Purpose::Screenshot => {
                     let p = path.to_string_lossy().to_string();
@@ -1848,6 +1917,15 @@ impl App {
                     }
                     return;
                 }
+                if let (PickerKind::Tabs, Some(PickData::Tab(i))) = (kind, &cur) {
+                    let selected = p.selected;
+                    self.close_tab(*i);
+                    self.open_tabs_picker();
+                    if let Some(p) = &mut self.picker {
+                        p.selected = selected.min(p.filtered.len().saturating_sub(1));
+                    }
+                    return;
+                }
                 if let (PickerKind::Recent, Some(PickData::Path(path))) = (kind, &cur) {
                     let selected = p.selected;
                     self.global.recent.retain(|r| &r.path != path);
@@ -1876,7 +1954,19 @@ impl App {
                     _ => {}
                 }
             }
-            PickerEvent::Accept => {
+            PickerEvent::AcceptAlt if matches!(p.kind, PickerKind::Files | PickerKind::Recent) => {
+                let path = match p.current().map(|i| i.data.clone()) {
+                    Some(PickData::Path(path)) if path.is_file() => path,
+                    _ => shellexpand(&p.query),
+                };
+                if path.is_file() {
+                    self.picker = None;
+                    self.open_in_new_tab(&path);
+                } else if p.kind == PickerKind::Files {
+                    self.picker_event(PickerEvent::Accept);
+                }
+            }
+            PickerEvent::Accept | PickerEvent::AcceptAlt => {
                 let p = self.picker.take().unwrap();
                 let query = p.query.trim().to_string();
                 let cur = p.current().cloned();
@@ -1951,6 +2041,7 @@ impl App {
             }
             PickData::Mark(c) => self.run_line(&format!("goto_mark {c}"), None),
             PickData::Theme(t) => self.set_theme(&t),
+            PickData::Tab(i) => self.switch_tab(i),
             PickData::Lua(..) => {} // handled in picker_event, which still has the label
             PickData::None => {}
         }

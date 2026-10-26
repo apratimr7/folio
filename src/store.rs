@@ -86,6 +86,11 @@ pub struct Global {
     /// Uppercase marks work across documents.
     #[serde(default)]
     pub marks: BTreeMap<char, (PathBuf, DocPos)>,
+    /// The open tabs when folio last quit, for `restore_tabs`.
+    #[serde(default)]
+    pub tabs: Vec<PathBuf>,
+    #[serde(default)]
+    pub active_tab: usize,
 }
 
 pub fn now() -> u64 {

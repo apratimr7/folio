@@ -40,13 +40,28 @@ impl eframe::App for App {
             let reply = self.run_remote(&req.line);
             let _ = req.reply.send(reply);
         }
-        // A file dropped onto the window opens like `oo` would.
-        if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf())) {
-            self.open(&path);
+        // Files dropped onto the window open in new tabs.
+        let dropped: Vec<_> = ctx.input(|i| {
+            i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect::<Vec<_>>()
+        });
+        for path in dropped {
+            self.open_in_new_tab(&path);
         }
         self.handle_keys(&ctx);
         self.tick_keys();
 
+        let show_tabs = match self.cfg.general.tab_bar {
+            crate::config::TabBar::Auto => self.tab_count() > 1,
+            crate::config::TabBar::Always => self.tab_count() > 0,
+            crate::config::TabBar::Never => false,
+        };
+        if show_tabs {
+            egui::Panel::top("tabs")
+                .exact_size(34.0)
+                .frame(egui::Frame::new().fill(c(self.theme.surface)))
+                .show_separator_line(false)
+                .show(ui, |ui| self.tab_bar(ui));
+        }
         if self.show_statusbar {
             egui::Panel::bottom("status")
                 .exact_size(28.0)

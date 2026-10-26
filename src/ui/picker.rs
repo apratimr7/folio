@@ -19,6 +19,8 @@ pub enum PickData {
     Bookmark(usize),
     Mark(char),
     Theme(String),
+    /// Index into the tab list.
+    Tab(usize),
     Lua(usize, usize),
     None,
 }
@@ -62,6 +64,7 @@ pub enum PickerKind {
     Marks,
     Themes,
     Help,
+    Tabs,
     Lua,
 }
 
@@ -86,6 +89,8 @@ pub enum PickerEvent {
     None,
     Close,
     Accept,
+    /// Shift-Enter: open in a new tab (file pickers); elsewhere the same as Enter.
+    AcceptAlt,
     /// Ctrl-D on an item (delete bookmark / highlight).
     Delete,
     /// Tab: complete (used by the file picker).
@@ -198,6 +203,8 @@ impl Picker {
                 ev = PickerEvent::Close;
             } else if i.consume_key(M::NONE, Key::Enter) {
                 ev = PickerEvent::Accept;
+            } else if i.consume_key(M::SHIFT, Key::Enter) {
+                ev = PickerEvent::AcceptAlt;
             } else if i.consume_key(M::NONE, Key::ArrowDown) || i.consume_key(M::CTRL, Key::N) || i.consume_key(M::CTRL, Key::J) {
                 self.move_by(1);
             } else if i.consume_key(M::NONE, Key::ArrowUp) || i.consume_key(M::CTRL, Key::P) || i.consume_key(M::CTRL, Key::K) {
