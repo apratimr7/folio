@@ -32,10 +32,10 @@ Each is a single self-contained program; nothing else needs to be installed.
 | **macOS**, Apple Silicon (M1–M4) | `folio-…-macos-arm64.zip` | Unzip, move `folio.app` to Applications. The first time, right-click it → *Open* (the app isn't notarized yet). |
 | **macOS**, Intel | `folio-…-macos-x86_64.zip` | Same as above. |
 | **Windows** 10/11 (x86_64) | `folio-…-windows-x86_64.zip` | Unzip anywhere and run `folio.exe`. If SmartScreen says the publisher is unknown: *More info* → *Run anyway*. |
-| **Linux** (x86_64, glibc 2.35+) | `folio-…-linux-x86_64.tar.gz` | `tar xzf folio-*.tar.gz`, then `install -Dm755 folio-*/folio ~/.local/bin/folio` (and optionally the `.desktop` file to `~/.local/share/applications/`). Needs the usual desktop libraries (`libxkbcommon`, OpenGL, Wayland or X11). |
+| **Linux** (x86_64, glibc 2.35+) | `folio-…-linux-x86_64.tar.gz` | `tar xzf folio-*.tar.gz`, then `install -Dm755 folio-*/folio ~/.local/bin/folio` (and optionally the `.desktop` file to `~/.local/share/applications/` and `folio.svg` to `~/.local/share/icons/hicolor/scalable/apps/`, so folio shows up under *Open with*). Needs the usual desktop libraries (`libxkbcommon`, OpenGL, Wayland or X11). |
 
-Open a PDF with `folio paper.pdf` (on macOS: `open -a folio --args paper.pdf`; opening from Finder by double-click
-isn't supported yet), or start `folio` and press `oo`. Checksums are in `SHA256SUMS` on the release page.
+Open a PDF with `folio paper.pdf`, from your file manager (*Open With → folio*, or make it the default PDF viewer),
+or start `folio` and press `oo`. A PDF opened while folio is running becomes a new tab in its window. Checksums are in `SHA256SUMS` on the release page.
 
 ## Build from source
 

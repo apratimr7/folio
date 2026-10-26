@@ -7,6 +7,7 @@ mod dialogs;
 mod doc;
 mod ipc;
 mod keymap;
+mod open_events;
 mod refs;
 mod render;
 mod script;
@@ -69,6 +70,8 @@ fn main() -> Result<()> {
             for a in &args {
                 match a.as_str() {
                     "--new" => new_instance = true,
+                    // Older macOS passes a process serial number when launched from Finder.
+                    psn if psn.starts_with("-psn_") => {}
                     "-h" | "--help" => {
                         print!("{USAGE}");
                         return Ok(());
@@ -91,12 +94,14 @@ fn main() -> Result<()> {
 }
 
 fn run(files: Vec<PathBuf>) -> Result<()> {
+    open_events::install();
     let options = eframe::NativeOptions {
         viewport: eframe::egui::ViewportBuilder::default()
             .with_title(config::APP_NAME)
             .with_app_id(config::APP_NAME)
             .with_inner_size([1100.0, 900.0])
-            .with_min_inner_size([360.0, 300.0]),
+            .with_min_inner_size([360.0, 300.0])
+            .with_icon(eframe::icon_data::from_png_bytes(include_bytes!("../packaging/icons/app-256.png")).unwrap_or_default()),
         // Window size and position are restored from eframe's own state file, next to folio's data.
         persist_window: true,
         persistence_path: Some(config::data_dir().join("window.ron")),

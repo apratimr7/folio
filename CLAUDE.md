@@ -73,7 +73,8 @@ release archive names. A rename still needs, by hand:
 - CI artifact instead of building: `gh run download -n folio-macos-macos-15`, unzip, right-click → Open.
 - Cmd works as Ctrl (`ui/frame.rs::chords()`); Cmd-Q goes through the app menu, so quitting is handled in
   `App::on_exit` too. The remote socket is in `$TMPDIR`; macOS limits socket paths to 104 bytes.
-- Known gap: opening a PDF from Finder doesn't load it (Apple Event `odoc` isn't handled). See `TODO.md`.
+- Finder opens (double-click, Open With, `open -a folio f.pdf`) arrive as `application:openURLs:`, added to
+  `NSObject` in `open_events.rs`; they open as tabs.
 
 ## Working on Windows
 

@@ -41,9 +41,8 @@ only depends on macOS itself, so the zip runs on any Mac of the same architectur
 - An app that isn't notarized is blocked the first time. Right-click → *Open*, or
   `xattr -dr com.apple.quarantine folio.app`.
 
-**Known limitation:** opening a PDF from Finder (double-click / *Open With*) starts folio but doesn't load the file
-yet, because Apple Events aren't handled. Use `open -a folio --args file.pdf` or the CLI for now
-(see [TODO.md](../TODO.md)).
+Once `folio.app` is in Applications, Finder's *Open With* lists it, and *Get Info → Open with → Change All…* makes
+it the default PDF viewer. `scripts/build-icons.sh` re-renders the icon from `packaging/icons/app.svg`.
 
 ## Windows
 

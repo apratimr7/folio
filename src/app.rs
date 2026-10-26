@@ -259,6 +259,11 @@ impl App {
         }
         close_on_signals(&app.ctx);
         app.load_script();
+        let wake = app.ctx.clone();
+        crate::open_events::set_waker(move || wake.request_repaint());
+        // Files from Finder arrive as an Apple Event while the app starts up.
+        let mut files = files;
+        files.extend(crate::open_events::take());
         app.open_startup_files(files);
         app
     }

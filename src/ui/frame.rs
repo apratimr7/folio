@@ -41,6 +41,9 @@ impl eframe::App for App {
             let _ = req.reply.send(reply);
         }
         // Files dropped onto the window open in new tabs.
+        for path in crate::open_events::take() {
+            self.open_in_new_tab(&path);
+        }
         let dropped: Vec<_> = ctx.input(|i| {
             i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect::<Vec<_>>()
         });

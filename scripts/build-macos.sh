@@ -23,6 +23,7 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "target/release/$NAME" "$APP/Contents/MacOS/$NAME"
 sed -e "s/@VERSION@/$VERSION/g" -e "s/@NAME@/$NAME/g" packaging/macos/Info.plist > "$APP/Contents/Info.plist"
+cp packaging/icons/app.icns "$APP/Contents/Resources/$NAME.icns"
 
 # Ad-hoc signature: required for arm64 binaries to launch at all.
 codesign --force --deep --sign - "$APP"

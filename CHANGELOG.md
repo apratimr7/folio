@@ -6,6 +6,10 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- **Opening from the file manager.** On macOS, double-clicking a PDF in Finder, *Open With → folio* and
+  `open -a folio paper.pdf` now open the file (as a new tab when folio is running), so folio can be the default PDF
+  viewer. The Linux `.desktop` file takes several files and has an icon.
+- **An app icon** (macOS bundle, Linux package and the window).
 - **Tabs.** Several documents in one window: `ot`/`Ctrl-t` opens one in a new tab, `gt`/`gT` (`Ctrl-Tab`) switch,
   `Alt-1`…`Alt-9` jump, `gb` lists them, `Ctrl-w` closes, `Ctrl-Shift-t` reopens. `Shift-Enter` in the file picker
   and recent list opens in a new tab, dropped files open in new tabs, and opening a document that's already open

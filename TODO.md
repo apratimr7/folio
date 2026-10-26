@@ -4,9 +4,9 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 
 ## Known issues
 
-- [ ] **macOS: opening from Finder** doesn't load the file, because the Apple Event `odoc` isn't handled (winit
-      doesn't expose it). Workaround: `open -a folio --args file.pdf`. Fix: a small `objc2` hook on
-      `application:openURLs:`.
+- [x] **macOS: opening from Finder** (double-click, Open With, `open -a folio file.pdf`): `application:openURLs:`
+      is added to `NSObject` before launch (`open_events.rs`); files open as tabs. Checked with `open -a`; a real
+      Finder double-click is still to be tried by hand.
 - [ ] **macOS: still unchecked on real hardware** after the 2026-10-20 test pass (which covered everything else, see
       below; trackpad scrolling and pinch zoom were confirmed by hand): Retina sharpness and the Intel build. (Since the
       switch to MuPDF the app has no Homebrew/dylib dependencies.)
@@ -120,8 +120,7 @@ Low:
       it's open, and add the chosen file to recents. Decide on a key (and whether `o` should open the native dialog,
       via a `file_dialog = "native" | "builtin"` setting); keep the keyboard picker either way.
 - [ ] **Opening and managing files** (review, 2026-10-21; do the first three together with the native dialog):
-  - [ ] Open from the file manager: macOS Finder (`odoc`, see Known issues) and a Linux `.desktop` file so folio
-        appears under "Open with" (see Packaging in Next up).
+  - [x] Open from the file manager: macOS Finder (see Known issues) and the Linux `.desktop` file (`%F`, icon).
   - [x] Single instance: `folio other.pdf` while folio is running opens it as a new tab there (over the remote
         socket; Unix only until Windows has remote control); `--new` starts a separate window.
   - [ ] Open by URL or arXiv ID: `open_url`-style command that downloads a pasted `arxiv.org`/PDF link or an ID
@@ -136,6 +135,9 @@ Low:
   - [x] Switch back to the previous document (`alternate_file`, `<C-6>`/`<C-^>` like vim).
   - [ ] Load documents off the UI thread so a large PDF doesn't freeze the window (also under macOS testing,
         "open the new document off the UI thread").
+        Measured 2026-10-26: a 1,300-page, 58 MB textbook opens in 0.37 s (debug build, all page sizes read up
+        front), so this is a short pause, not a freeze. Worth doing together with sharing page sizes between the
+        UI and the render threads (each opens the document and reads every page's bounds again).
   - [x] Save dialogs: `gE`/`save_highlights` saves highlights as Markdown (`export_highlights PATH` writes
         directly), and `screenshot` without a path asks where to save.
   - [x] `reveal_file` (show the document in the file manager) and `copy_path` commands.
@@ -146,8 +148,9 @@ Low:
       verified; restoring couldn't be observed on the test machine because a tiling window manager places windows.
 - [ ] **Printing** (or "open in system viewer to print" as a stopgap).
 - [ ] **Scrollbar / position indicator** you can drag, at least on hover.
-- [ ] **App icon** (macOS `.icns`, Linux icon for the `.desktop` file).
-- [ ] **Set as default PDF viewer** works only after the Finder `odoc` fix (Known issues).
+- [x] **App icon** (`packaging/icons/app.svg`, rendered by `scripts/build-icons.sh`): macOS `.icns`, the Linux SVG,
+      and the window icon. Still missing: the Windows `.exe` icon (see Windows packaging).
+- [x] **Set as default PDF viewer**: possible now that Finder opens are handled (Known issues).
 - [x] Printed page numbers: `:8` is always the physical page; `:p8` (or `goto_page p8`) goes to the page labeled 8.
 
 ## Configuration space (to build in one go)

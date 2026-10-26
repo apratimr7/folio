@@ -806,6 +806,7 @@ dependencies = [
  "mlua",
  "mupdf",
  "nucleo-matcher",
+ "objc2 0.6.5",
  "pollster",
  "regex",
  "rfd",
