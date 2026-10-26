@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+## [0.2.1] — 2026-10-26
+
+Tabs, opening files from the file manager and the system dialog, editable highlights, selections across pages,
+and a documentation website, plus many smaller fixes.
+
 ### Added
 - **Tabs.** Several documents in one window: `ot`/`Ctrl-t` opens one in a new tab, `gt`/`gT` (`Ctrl-Tab`) switch,
   `Alt-1`…`Alt-9` jump, `gb` lists them, `Ctrl-w` closes, `Ctrl-Shift-t` reopens. `Shift-Enter` in the file picker

@@ -4,9 +4,19 @@ folio is a keyboard-first PDF reader for technical documents (a sioyek-like tool
 read papers and books and write LaTeX/Typst. Goals: a fully keyboard-centric, clean modern UI that's customizable,
 extensible by scripting (Lua), and designed for research reading. **AI features come next** (see `ROADMAP.md` § 0.3).
 
-Version 0.1.0 plus everything under `[Unreleased]` in `CHANGELOG.md`. Runs on Linux, macOS and Windows.
+Version 0.2.1 (see `CHANGELOG.md`; work since goes under `[Unreleased]`). Runs on Linux, macOS and Windows.
 Branches: `main` is the latest state everyone should use (CI green on all platforms); `dev` is where work happens
 and is merged into `main` once CI passes. The repository is public on GitHub (`apratimr7/folio`) since v0.2.0.
+
+## Status as of 2026-10-26
+
+- **0.2.1** adds tabs (`tabs.rs`, restored on start, files handed to the running window), background opening
+  (`loader.rs`), the system file dialogs (`dialogs.rs`, rfd), Finder opens on macOS (`open_events.rs`), `o` as a key
+  prefix with a key menu, editable highlights (`highlights.rs`), selections across pages, rotation, password
+  prompts, an app icon (`packaging/icons/`), and an mdBook site whose reference tables are generated
+  (`reference.rs`, `folio --update-docs`). `feed_keys` lets `--remote` send keys, so key paths can be tested.
+- Test launches of the GUI must pass `--new`, or `folio FILE` hands the file to whatever folio is running (the
+  user's own instance included).
 
 ## Status as of 2026-10-21
 
@@ -120,8 +130,8 @@ folio --remote 'screenshot /tmp/shot.png'           # PNG of the window's own fr
 folio --remote "lua io.stderr:write(folio.state().page .. '\n')"   # probe state (stderr of the app)
 ```
 
-Keys can't be injected through `--remote`. Test key paths with unit tests in `keymap.rs`, or call the command the
-key maps to. Don't take whole-screen screenshots of the user's desktop, and don't launch windows that steal focus
+Keys can be injected with `folio --remote 'feed_keys gg'` (vim notation); unit tests in `keymap.rs` cover the
+dispatcher. Don't take whole-screen screenshots of the user's desktop, and don't launch windows that steal focus
 while the user is typing. Use the in-app `screenshot` command.
 
 ## Architecture (details in `docs/ARCHITECTURE.md`)
