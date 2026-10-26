@@ -879,6 +879,7 @@ impl App {
             ui.label(RichText::new(label).color(c(t.accent)).strong().size(15.0));
             let id = egui::Id::unique("prompt_input");
             let edit = egui::TextEdit::singleline(&mut p.text)
+                .password(matches!(p.kind, PromptKind::Password(_)))
                 .id(id)
                 .desired_width(f32::INFINITY)
                 .font(FontId::proportional(15.0))

@@ -104,6 +104,8 @@ pub struct Peek {
 
 pub struct Session {
     pub path: PathBuf,
+    /// Rotation and password, for every thread that opens the document. The password is never saved.
+    pub opts: doc::OpenOptions,
     pub title: String,
     pub backend: Rc<dyn Backend>,
     pub view: View,
@@ -157,9 +159,11 @@ pub fn render_colors(theme: &Theme) -> Colors {
 }
 
 impl Session {
-    pub fn open(path: &Path, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
+    pub fn open(path: &Path, password: Option<String>, cfg: &Config, theme: &Theme, ctx: &egui::Context) -> Result<Self> {
         let path = doc::canonicalize(path)?;
-        let backend: Rc<dyn Backend> = Rc::from(doc::open(&path)?);
+        let state = DocState::load(&path);
+        let opts = doc::OpenOptions { rotation: state.rotation, password };
+        let backend: Rc<dyn Backend> = Rc::from(doc::open_with(&path, &opts)?);
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         let meta = backend.metadata();
         let file_name = path.file_name().map(|s| s.to_string_lossy().to_string()).unwrap_or_default();
@@ -169,9 +173,8 @@ impl Session {
             let ctx = ctx.clone();
             move || ctx.request_repaint()
         };
-        let pool = RenderPool::new(path.clone(), cfg.general.render_threads, render_colors(theme), wake.clone());
-        let text = TextWorker::new(path.clone(), wake);
-        let state = DocState::load(&path);
+        let pool = RenderPool::new(path.clone(), opts.clone(), cfg.general.render_threads, render_colors(theme), wake.clone());
+        let text = TextWorker::new(path.clone(), opts.clone(), wake);
         let mut view = View::new(sizes, cfg.general.page_gap);
         if let Some(z) = state.zoom.filter(|_| !state.fit_width) {
             view.fit = Fit::None;
@@ -210,6 +213,7 @@ impl Session {
             last_page: usize::MAX,
             first_frame: true,
             path,
+            opts,
         })
     }
 
@@ -233,14 +237,14 @@ impl Session {
 
     /// Reopen the file after it changed on disk (e.g. LaTeX rebuild).
     pub fn reload(&mut self) -> Result<()> {
-        let backend: Rc<dyn Backend> = Rc::from(doc::open(&self.path)?);
+        let backend: Rc<dyn Backend> = Rc::from(doc::open_with(&self.path, &self.opts)?);
         let sizes = (0..backend.page_count()).map(|i| backend.page_size(i)).collect();
         self.view.set_sizes(sizes);
         self.outline = Rc::new(backend.outline());
         self.backend = backend;
         self.generation += 1;
-        self.pool.reload(self.generation);
-        self.text.send(crate::text::Request::Reload);
+        self.pool.reload(self.generation, self.opts.clone());
+        self.text.send(crate::text::Request::Reload(self.opts.clone()));
         self.page_texts.clear();
         self.links.clear();
         self.selection = None;
@@ -249,6 +253,25 @@ impl Session {
         if let Some(s) = self.search.take() {
             self.start_search(s.query, s.backward, self.view.pos_at(0.0), false);
         }
+        Ok(())
+    }
+
+    /// Turn the view by `degrees` (a multiple of 90, clockwise), keeping the current page in view. Highlight boxes
+    /// are recomputed from their characters, since they're stored in view coordinates.
+    pub fn rotate(&mut self, degrees: i32) -> Result<()> {
+        let page = self.view.current_page();
+        self.opts.rotation = (self.opts.rotation as i32 + degrees).rem_euclid(360) as u16;
+        self.state.rotation = self.opts.rotation;
+        self.reload()?;
+        let mut highlights = std::mem::take(&mut self.state.highlights);
+        for h in &mut highlights {
+            let t = self.page_text(h.page);
+            h.rects = t.span_rects(h.start, h.end).into_iter().map(Into::into).collect();
+        }
+        self.state.highlights = highlights;
+        self.ruler = None;
+        self.view.goto(DocPos { page, y: 0.0 }, 0.0, false);
+        self.save_state();
         Ok(())
     }
 

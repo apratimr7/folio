@@ -227,6 +227,36 @@ pub fn canonicalize(path: &Path) -> std::io::Result<std::path::PathBuf> {
     Ok(p)
 }
 
+/// Opening failures the UI handles specially (by asking for a password).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum OpenError {
+    NeedsPassword,
+    WrongPassword,
+}
+
+impl std::fmt::Display for OpenError {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            OpenError::NeedsPassword => "the document is password-protected",
+            OpenError::WrongPassword => "wrong password",
+        })
+    }
+}
+
+impl std::error::Error for OpenError {}
+
+/// How a document is opened. Every thread opens its own instance with the same options.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct OpenOptions {
+    /// Clockwise view rotation in degrees: 0, 90, 180 or 270.
+    pub rotation: u16,
+    pub password: Option<String>,
+}
+
 pub fn open(path: &Path) -> Result<Box<dyn Backend>> {
-    Ok(Box::new(MupdfDoc::open(path)?))
+    open_with(path, &OpenOptions::default())
+}
+
+pub fn open_with(path: &Path, opts: &OpenOptions) -> Result<Box<dyn Backend>> {
+    Ok(Box::new(MupdfDoc::open(path, opts)?))
 }

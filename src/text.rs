@@ -20,7 +20,7 @@ pub struct SearchHit {
 pub enum Request {
     Search { generation: u32, query: String },
     FindRef { id: u64, kind: RefKind, label: String, from_page: usize, from_char: usize },
-    Reload,
+    Reload(doc::OpenOptions),
 }
 
 pub enum Response {
@@ -37,7 +37,7 @@ pub struct TextWorker {
 }
 
 impl TextWorker {
-    pub fn new(path: PathBuf, wake: impl Fn() + Send + 'static) -> Self {
+    pub fn new(path: PathBuf, opts: doc::OpenOptions, wake: impl Fn() + Send + 'static) -> Self {
         let (tx, req_rx) = crossbeam_channel::unbounded::<Request>();
         let (resp_tx, rx) = crossbeam_channel::unbounded();
         let search_gen = Arc::new(AtomicU32::new(0));
@@ -45,10 +45,10 @@ impl TextWorker {
         std::thread::Builder::new()
             .name("text".into())
             .spawn(move || {
-                let mut index = Index::open(&path);
+                let mut index = Index::open(&path, &opts);
                 for req in req_rx {
                     match req {
-                        Request::Reload => index = Index::open(&path),
+                        Request::Reload(opts) => index = Index::open(&path, &opts),
                         Request::Search { generation, query } => {
                             index.search(&query, generation, &latest, &resp_tx, &wake);
                         }
@@ -85,8 +85,8 @@ struct Index {
 }
 
 impl Index {
-    fn open(path: &std::path::Path) -> Self {
-        let doc = doc::open(path).ok();
+    fn open(path: &std::path::Path, opts: &doc::OpenOptions) -> Self {
+        let doc = doc::open_with(path, opts).ok();
         let n = doc.as_ref().map(|d| d.page_count()).unwrap_or(0);
         Self { doc, pages: vec![None; n] }
     }

@@ -90,6 +90,7 @@ commands! {
     "export_highlights" => "Copy all highlights and notes as Markdown",
     "toggle_ruler" => "Toggle the reading ruler (j/k move by line)",
     "reload" => "Reload the document",
+    "rotate" ("degrees") => "Rotate the pages clockwise (default 90; -90 turns back)",
     "toggle_statusbar" => "Show or hide the status bar",
     "toggle_text_panel" => "Show or hide the side text panel",
     "fullscreen" => "Toggle fullscreen",

@@ -52,6 +52,7 @@ struct Shared {
     wanted: Vec<TileKey>,
     in_flight: HashSet<TileKey>,
     path: PathBuf,
+    opts: doc::OpenOptions,
     generation: u32,
     colors: Colors,
     shutdown: bool,
@@ -63,9 +64,23 @@ pub struct RenderPool {
 }
 
 impl RenderPool {
-    pub fn new(path: PathBuf, threads: usize, colors: Colors, wake: impl Fn() + Send + Sync + 'static) -> Self {
+    pub fn new(
+        path: PathBuf,
+        opts: doc::OpenOptions,
+        threads: usize,
+        colors: Colors,
+        wake: impl Fn() + Send + Sync + 'static,
+    ) -> Self {
         let shared = Arc::new((
-            Mutex::new(Shared { wanted: Vec::new(), in_flight: HashSet::new(), path, generation: 0, colors, shutdown: false }),
+            Mutex::new(Shared {
+                wanted: Vec::new(),
+                in_flight: HashSet::new(),
+                path,
+                opts,
+                generation: 0,
+                colors,
+                shutdown: false,
+            }),
             Condvar::new(),
         ));
         let (tx, rx) = crossbeam_channel::unbounded();
@@ -92,10 +107,12 @@ impl RenderPool {
         }
     }
 
-    pub fn reload(&self, generation: u32) {
+    /// Workers reopen the document (with `opts`) for tiles of the new generation.
+    pub fn reload(&self, generation: u32, opts: doc::OpenOptions) {
         let (lock, cv) = &*self.shared;
         let mut s = lock.lock().unwrap();
         s.generation = generation;
+        s.opts = opts;
         s.wanted.clear();
         cv.notify_all();
     }
@@ -117,7 +134,7 @@ fn worker(shared: Arc<(Mutex<Shared>, Condvar)>, tx: Sender<Tile>, wake: impl Fn
     let (lock, cv) = &*shared;
     let mut document: Option<(u32, Box<dyn doc::Backend>)> = None;
     loop {
-        let (key, path, colors) = {
+        let (key, path, opts, colors) = {
             let mut s = lock.lock().unwrap();
             loop {
                 if s.shutdown {
@@ -128,13 +145,13 @@ fn worker(shared: Arc<(Mutex<Shared>, Condvar)>, tx: Sender<Tile>, wake: impl Fn
                 if let Some(pos) = pos {
                     let key = s.wanted.remove(pos);
                     s.in_flight.insert(key);
-                    break (key, s.path.clone(), s.colors);
+                    break (key, s.path.clone(), s.opts.clone(), s.colors);
                 }
                 s = cv.wait(s).unwrap();
             }
         };
         if document.as_ref().map(|(g, _)| *g) != Some(key.generation) {
-            document = doc::open(&path).ok().map(|d| (key.generation, d));
+            document = doc::open_with(&path, &opts).ok().map(|d| (key.generation, d));
         }
         let tile = document.as_ref().and_then(|(_, d)| render_tile(d.as_ref(), key, colors));
         lock.lock().unwrap().in_flight.remove(&key);

@@ -20,7 +20,7 @@ pub fn fixture(name: &str) -> PathBuf {
 }
 
 pub fn open_fixture(name: &str) -> MupdfDoc {
-    MupdfDoc::open(&fixture(name)).unwrap_or_else(|e| panic!("cannot open fixture {name}: {e:#}"))
+    MupdfDoc::open(&fixture(name), &Default::default()).unwrap_or_else(|e| panic!("cannot open fixture {name}: {e:#}"))
 }
 
 /// The visual lines of a page as strings.

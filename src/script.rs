@@ -30,13 +30,29 @@ pub enum Level {
 pub enum Effect {
     Exec(String),
     Notify(String, Level),
-    Map { mode: String, keys: String, command: String },
-    Show { title: String, text: String },
+    Map {
+        mode: String,
+        keys: String,
+        command: String,
+    },
+    Show {
+        title: String,
+        text: String,
+    },
     Append(String),
-    Prompt { label: String, callback: FnId, initial: String },
-    Pick { title: String, items: Vec<String>, callback: FnId },
+    Prompt {
+        label: String,
+        callback: FnId,
+        initial: String,
+    },
+    Pick {
+        title: String,
+        items: Vec<String>,
+        callback: FnId,
+    },
     Clipboard(String),
-    Open(PathBuf),
+    /// A path and, for a protected document, its password.
+    Open(PathBuf, Option<String>),
     SetOption(String, String),
 }
 
@@ -459,8 +475,8 @@ fn install_api(
     let p = push.clone();
     folio.set(
         "open",
-        lua.create_function(move |_, path: String| {
-            let _: () = p(Effect::Open(PathBuf::from(path)));
+        lua.create_function(move |_, (path, password): (String, Option<String>)| {
+            let _: () = p(Effect::Open(PathBuf::from(path), password));
             Ok(())
         })?,
     )?;

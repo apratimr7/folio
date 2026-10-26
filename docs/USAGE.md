@@ -138,6 +138,11 @@ Position, zoom, marks, highlights and bookmarks are restored when you reopen a f
 **Auto-reload:** when the open file changes on disk (for example `latexmk -pvc` or `typst watch`), folio reloads it
 and keeps your position. `R` forces a reload.
 
+**Rotation:** `>` turns the pages 90° clockwise, `<` turns them back (`:rotate 180` for any multiple of 90). The
+rotation is remembered per document; text selection, search and highlights follow it.
+
+**Password-protected PDFs** ask for the password when opened (it's kept in memory only, never saved).
+
 ## Pickers
 
 The command palette, TOC, files, recent documents, highlights, bookmarks, marks and the help screen (`F1`)

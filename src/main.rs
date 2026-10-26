@@ -183,7 +183,7 @@ fn debug(args: &[String]) -> Result<()> {
         }
         "findref" => {
             // folio --debug findref FILE PAGE  — resolve every reference detected on PAGE.
-            let worker = text::TextWorker::new(PathBuf::from(path), || {});
+            let worker = text::TextWorker::new(PathBuf::from(path), Default::default(), || {});
             let t = d.page_text(page);
             for (i, r) in refs::detect(&t).into_iter().enumerate() {
                 worker.send(text::Request::FindRef {
@@ -199,7 +199,9 @@ fn debug(args: &[String]) -> Result<()> {
                         let line = tt
                             .lines()
                             .into_iter()
-                            .find(|&(s, e)| tt.span_rects(s, e).iter().any(|lr| lr.y0 <= rect.center_y() && lr.y1 >= rect.center_y()))
+                            .find(|&(s, e)| {
+                                tt.span_rects(s, e).iter().any(|lr| lr.y0 <= rect.center_y() && lr.y1 >= rect.center_y())
+                            })
                             .map(|(s, e)| tt.span_text(s, e))
                             .unwrap_or_default();
                         format!("p{} «{}»", p + 1, line.chars().take(70).collect::<String>())

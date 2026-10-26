@@ -51,7 +51,7 @@ fn effects(s: &Script) -> Vec<String> {
             Effect::Prompt { label, initial, .. } => format!("prompt {label} [{initial}]"),
             Effect::Pick { title, items, .. } => format!("pick {title} {}", items.join(",")),
             Effect::Clipboard(t) => format!("clipboard {t}"),
-            Effect::Open(p) => format!("open {}", p.display()),
+            Effect::Open(p, _) => format!("open {}", p.display()),
             Effect::SetOption(k, v) => format!("set {k}={v}"),
         })
         .collect()

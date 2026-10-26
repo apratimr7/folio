@@ -413,6 +413,8 @@ pub const NORMAL_DEFAULTS: &[(&str, &str)] = &[
     ("gh", "highlights"),
     ("r", "toggle_ruler"),
     ("R", "reload"),
+    (">", "rotate"),
+    ("<", "rotate -90"),
     ("ZZ", "quit"),
     ("<C-q>", "quit"),
     ("<F11>", "fullscreen"),

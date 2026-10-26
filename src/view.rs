@@ -226,6 +226,7 @@ impl View {
         let pos = self.pos_at(0.0);
         self.sizes = sizes;
         self.relayout();
+        self.apply_fit();
         self.goto(pos, 0.0, false);
     }
 

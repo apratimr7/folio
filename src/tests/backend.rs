@@ -241,6 +241,38 @@ fn out_of_range_pages_are_empty_not_panics() {
 fn encrypted_pdf_asks_for_a_password() {
     let err = doc::open(&fixture("encrypted.pdf")).err().expect("an encrypted PDF must not open without a password");
     assert!(err.to_string().contains("password"), "error should mention the password: {err:#}");
+    assert_eq!(err.downcast_ref::<doc::OpenError>(), Some(&doc::OpenError::NeedsPassword));
+    let with = |pw: &str| {
+        doc::open_with(&fixture("encrypted.pdf"), &doc::OpenOptions { password: Some(pw.into()), ..Default::default() })
+    };
+    let err = with("nope").err().expect("a wrong password must fail");
+    assert_eq!(err.downcast_ref::<doc::OpenError>(), Some(&doc::OpenError::WrongPassword));
+    let d = with("folio").expect("the right password opens it");
+    assert!(!d.page_text(0).chars.is_empty());
+}
+
+#[test]
+fn rotation_turns_sizes_text_and_links() {
+    let plain = open_fixture("refs.pdf");
+    for rotation in [90, 180, 270] {
+        let d = doc::open_with(&fixture("refs.pdf"), &doc::OpenOptions { rotation, ..Default::default() }).unwrap();
+        let (w, h) = d.page_size(3);
+        let expect = if rotation == 180 { LETTER } else { (LETTER.1, LETTER.0) };
+        assert!((w - expect.0).abs() < 1.0 && (h - expect.1).abs() < 1.0, "{rotation}°: {w}×{h}");
+        let (t, t0) = (d.page_text(3), plain.page_text(3));
+        assert_eq!(t.chars, t0.chars, "rotation keeps the text");
+        for r in t.rects.iter().filter(|r| !r.is_empty()) {
+            assert_within_page(d.as_ref(), 3, *r, &format!("char at {rotation}°"));
+        }
+        // A char's box keeps its size, turned for 90/270.
+        let (r, r0) = (t.rects[0], t0.rects[0]);
+        let (rw, rh) = if rotation == 180 { (r.width(), r.height()) } else { (r.height(), r.width()) };
+        assert!((rw - r0.width()).abs() < 0.01 && (rh - r0.height()).abs() < 0.01, "{rotation}°: {r:?} vs {r0:?}");
+        assert_eq!(d.links(3).len(), plain.links(3).len());
+        // The rendered page is the turned size.
+        let bmp = d.render(3, 1.0, 0, 0, w as u32, h as u32).unwrap();
+        assert_eq!((bmp.width, bmp.height), (w as u32, h as u32));
+    }
 }
 
 /// Exercise everything a damaged file can reach. Errors are fine; a panic or a crash is the bug.

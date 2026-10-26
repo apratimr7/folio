@@ -25,7 +25,7 @@ fn find(name: &str, page: usize, kind: RefKind, label: &str) -> Reference {
 /// Resolve a reference detected on `page` like the app does; returns the target page and the line there.
 fn resolve(name: &str, page: usize, kind: RefKind, label: &str) -> Option<(usize, String)> {
     let r = find(name, page, kind, label);
-    let worker = TextWorker::new(fixture(name), || {});
+    let worker = TextWorker::new(fixture(name), Default::default(), || {});
     worker.send(Request::FindRef { id: 7, kind, label: label.into(), from_page: page, from_char: r.start });
     let Ok(Response::Ref { id: 7, target }) = worker.rx.recv_timeout(Duration::from_secs(20)) else {
         panic!("no answer from the text worker")

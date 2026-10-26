@@ -35,12 +35,16 @@ impl Mode {
 
 #[derive(Clone, Debug)]
 pub enum PromptKind {
-    Search { backward: bool },
+    Search {
+        backward: bool,
+    },
     GotoPage,
     CommandArg(String),
     Lua(FnId),
     Bookmark,
     Annotate,
+    /// The password for a protected document; the text is masked.
+    Password(PathBuf),
 }
 
 pub struct Prompt {
@@ -333,10 +337,15 @@ impl App {
     // Documents
 
     pub fn open(&mut self, path: &Path) {
+        self.open_with_password(path, None);
+    }
+
+    /// Open a document; a protected one asks for its password first.
+    pub fn open_with_password(&mut self, path: &Path, password: Option<String>) {
         if let Some(d) = &mut self.doc {
             d.save_state();
         }
-        match Session::open(path, &self.cfg, &self.theme, &self.ctx) {
+        match Session::open(path, password, &self.cfg, &self.theme, &self.ctx) {
             Ok(s) => {
                 self.global.touch_recent(&s.path, &s.title, s.state.pos.map(|p| p.page).unwrap_or(0));
                 self.global.save();
@@ -348,7 +357,16 @@ impl App {
                 let p = self.doc.as_ref().map(|d| d.path.to_string_lossy().to_string()).unwrap_or_default();
                 self.emit("open", p);
             }
-            Err(e) => notify_into(&mut self.toasts, format!("{}: {e:#}", path.display()), Level::Error),
+            Err(e) => match e.downcast_ref::<crate::doc::OpenError>() {
+                Some(err) => {
+                    if *err == crate::doc::OpenError::WrongPassword {
+                        self.warn("Wrong password");
+                    }
+                    let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+                    self.ask(&format!("password for {name}"), PromptKind::Password(path.to_path_buf()), String::new());
+                }
+                None => notify_into(&mut self.toasts, format!("{}: {e:#}", path.display()), Level::Error),
+            },
         }
     }
 
@@ -502,7 +520,7 @@ impl App {
                 self.lua_picker_cb = Some(callback);
             }
             Effect::Clipboard(text) => self.ctx.copy_text(text),
-            Effect::Open(p) => self.open(&p),
+            Effect::Open(p, password) => self.open_with_password(&p, password),
             Effect::SetOption(k, v) => self.set_option(&k, &v),
         }
     }
@@ -1135,6 +1153,16 @@ impl App {
                         .position(|&(s, e)| t.span_rects(s, e).first().is_some_and(|r| r.y1 >= pos.y))
                         .unwrap_or(0);
                     d.ruler = Some(Ruler { page: pos.page, line });
+                }
+            }
+            "rotate" => {
+                let deg = if args.is_empty() { 90 } else { args.parse::<i32>().unwrap_or(0) };
+                if deg % 90 != 0 || deg == 0 {
+                    return self.warn(format!("rotate: '{args}' isn't a multiple of 90 degrees"));
+                }
+                let deg = deg * count.unwrap_or(1).max(1) as i32;
+                if let Err(e) = d.rotate(deg) {
+                    notify_into(&mut self.toasts, format!("rotate failed: {e:#}"), Level::Error);
                 }
             }
             "reload" => {
@@ -1836,6 +1864,11 @@ impl App {
             PromptKind::Lua(cb) => self.with_script(|s| s.call_fn(cb, text)),
             PromptKind::Bookmark => {
                 self.run_line(&format!("add_bookmark {}", if text.is_empty() { "Bookmark" } else { &text }), None)
+            }
+            PromptKind::Password(path) => {
+                if !text.is_empty() {
+                    self.open_with_password(&path, Some(p.text));
+                }
             }
             PromptKind::Annotate => {
                 let color = self.theme.highlights.get(1).map(|h| h.0.clone()).unwrap_or_else(|| "yellow".into());

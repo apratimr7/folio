@@ -5,6 +5,11 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Added
+- `rotate` (`>` clockwise, `<` back) turns the pages by 90°; the rotation is saved per document, and text,
+  search, links and highlights follow it.
+- Password-protected PDFs ask for their password (masked, never saved); `folio.open(path, password)` in Lua.
+
 ### Fixed
 - `folio --remote` waits for each command and exits with status 1 (printing the message) when one fails;
   output such as `lua` results is printed to stdout.

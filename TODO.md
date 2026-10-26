@@ -16,7 +16,7 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
 - [ ] Smart references are heuristic. Known gaps: author–year citations (`Smith et al. 2020`), equation numbers
       that aren't at the end of their text line, two-column layouts where poppler merges lines from both columns.
 - [ ] Bare equation references like `(2.8)` are only detected with a dot (to avoid noise like `(1)`).
-- [ ] Page rotation (`/Rotate`) is handled by poppler's page size, but no rotate command exists yet.
+- [x] Page rotation: the PDF's own `/Rotate` is honored by MuPDF; `rotate` (`>`/`<`) turns the view, per document.
 - [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
 - [x] PDF link-border annotations (red hyperref boxes): MuPDF doesn't draw link borders, so nothing to hide
       (checked on `refs.pdf`, default hyperref).
@@ -137,8 +137,8 @@ Low:
   - [ ] Save dialogs: export highlights to a Markdown file (today only clipboard and panel) and let `screenshot`
         ask where to save instead of requiring a path.
   - [ ] `reveal_file` (show the document in the file manager) and `copy_path` commands.
-- [ ] **Password-protected PDFs:** they now fail with a clear "password-protected" error; add a prompt
-      (`Document::authenticate` in MuPDF) and a `--password` / Lua option.
+- [x] **Password-protected PDFs:** a masked prompt asks for the password (again after a wrong one);
+      `folio.open(path, password)` from Lua. No `--password` flag: it would end up in shell history.
 - [x] **Drag and drop** a PDF onto the window (not yet checked with a real Finder drag).
 - [x] **Remember window size and position** (eframe persistence, `window.ron` in the data dir). Saving is
       verified; restoring couldn't be observed on the test machine because a tiling window manager places windows.

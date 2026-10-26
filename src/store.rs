@@ -65,6 +65,9 @@ pub struct DocState {
     pub bookmarks: Vec<Bookmark>,
     #[serde(default)]
     pub highlights: Vec<Highlight>,
+    /// Clockwise view rotation in degrees.
+    #[serde(default)]
+    pub rotation: u16,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
