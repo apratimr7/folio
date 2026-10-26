@@ -50,7 +50,7 @@ jobs:
       - if: github.event_name != 'pull_request'
         run: |
           cargo doc --no-deps --document-private-items
-          cp -r target/doc target/book/dev
+          mkdir -p target/book/dev && cp -r target/doc/. target/book/dev/
           echo '<meta http-equiv="refresh" content="0; url=folio/index.html">' > target/book/dev/index.html
       - if: github.event_name != 'pull_request'
         uses: actions/upload-pages-artifact@v5
