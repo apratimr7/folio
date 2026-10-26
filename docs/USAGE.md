@@ -96,15 +96,14 @@ motions continue onto the next page at a page's end, and so does a mouse drag. T
 | keys | |
 |---|---|
 | `w`/`e`, `b` | extend by a word forward / back |
-| `l`, `←` | by a character forward / back |
+| `l`, `h` | by a character forward / back |
 | `j`, `k` | to the line below / above |
 | `$`, `0` | end / start of the line |
 | `)` | to the end of the sentence |
 | `o` | swap the ends |
 | `y` / `Ctrl-c` | copy and leave visual mode |
-| `h` then a color key | highlight, like sioyek: `hy` yellow, `hg` green, `hb` blue, `hp` pink, `hu` purple, `hh` the default color (the key menu shows them) |
-| `H` | highlight in the default color |
-| `a` | highlight with a note |
+| `H` then a color key | highlight: `Hy` yellow, `Hg` green, `Hb` blue, `Hp` pink, `Hu` purple, `HH` the default color (the key menu shows them) |
+| `HA` | highlight with a note |
 | `*` | search for the selection |
 | `Esc` / `v` | cancel |
 
@@ -115,7 +114,7 @@ With the mouse: drag to select, double-click to select a word, click to clear.
 `ge` exports all highlights, notes and bookmarks as Markdown to the clipboard and the text panel (`gE` to a file).
 Highlights and notes are saved per document.
 
-More colors: add one under `[theme.highlight]` and bind a key to it, e.g. `"hr" = "highlight red"` under
+More colors: add one under `[theme.highlight]` and bind a key to it, e.g. `"Hr" = "highlight red"` under
 `[keys.visual]`.
 
 **Editing a highlight:** `gH` labels the highlights on screen; type one's label (or right-click a highlight) to open

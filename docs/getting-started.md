@@ -47,7 +47,7 @@ target in a floating window: `j`/`k` scroll it, `Enter` jumps, `Esc` closes. `f`
 ## Select, copy, highlight
 
 `v` labels the rows on screen; type one, then a word on it, and the selection starts there. Extend it with `w`, `j`,
-`$` and friends (it can run onto the next page), then `y` copies, `H` highlights and `a` adds a note. `gh` lists your
+`$` and friends (it can run onto the next page), then `y` copies, `H` followed by a color key (`Hy`, `Hg`, `Hb`…) highlights and `HA` adds a note. `gh` lists your
 highlights, `gH` edits one.
 
 ![Choosing where a selection starts: each word of the chosen row gets a label](images/visual-hints.png)

@@ -51,9 +51,9 @@ and a documentation website, plus many smaller fixes.
   directly, and `screenshot` without a path asks where to save.
 
 ### Changed
-- **Highlighting works like sioyek:** with a selection, `h` then a color key highlights (`hy` yellow, `hg` green,
-  `hb` blue, `hp` pink, `hu` purple, `hh` the default); the key menu shows the colors as swatches. In visual mode
-  one character back is now `←` only (`h` was). `H` still highlights in the default color.
+- **Highlight colors from the keyboard:** with a selection, `H` then a color key highlights (`Hy` yellow, `Hg` green,
+  `Hb` blue, `Hp` pink, `Hu` purple, `HH` the default); the key menu shows the colors as swatches. A note is now
+  `HA` (was `a`).
 - Documents are read in the background, so opening a long book doesn't stall the window (a tab says
   "Opening…" until it's ready), and the render threads reuse the page sizes instead of reading them again.
   `folio.open` from Lua returns before the document is shown; the `open` event fires when it is.

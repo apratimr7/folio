@@ -63,7 +63,7 @@ Press `F1` in the app for every key binding, or `:` for the command palette.
 | `J` `K` `gg` `G` `12gg` `:12` | pages | `t` / `x` | TOC picker / sidebar |
 | `+` `-` `w` `W` | zoom, fit | `f` `F` | follow / peek link |
 | `Ctrl-o` `Ctrl-i` | jump back/forward | `s` `S` | smart reference jump / peek |
-| `m{x}` `'{x}` | marks | `v` → row → word, then `y` `H` `a` | select → copy, highlight, annotate |
+| `m{x}` `'{x}` | marks | `v` → row → word, then `y` `H{color}` `HA` | select → copy, highlight, annotate |
 | `b` `B` `gh` `ge` | bookmarks, highlights, export | `r` | reading ruler |
 | `i` `I` `T` | dark / tinted pages, theme | `oo` `of` `O` | open (system dialog / type a path), recent |
 
