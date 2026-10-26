@@ -6,6 +6,7 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
+- Lua hook `selection_done`: the selected text once the selection has settled (0.4 s), for slow handlers.
 - Settings `ruler_dim` and `hint_dim` set how dark the reading ruler and the `v` row hints dim the page
   (`0` turns the dimming off); also `folio.set`.
 - Documents without a title in their metadata (most arXiv preprints) are named after the largest text at the

@@ -95,6 +95,8 @@ pub struct App {
     pub quit_emitted: bool,
     /// Collects command output (e.g. `lua` results) while a remote command runs, for the client to print.
     pub remote_out: Option<String>,
+    /// The latest selection and when it changed, for the debounced `selection_done` hook.
+    pub selection_settling: Option<(String, Instant)>,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -232,6 +234,7 @@ impl App {
             effect_depth: 0,
             quit_emitted: false,
             remote_out: None,
+            selection_settling: None,
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -452,7 +455,24 @@ impl App {
         }
     }
 
+    /// Fire `selection_done` once the selection has stopped changing for a moment (for slow handlers).
+    pub fn settle_selection(&mut self) {
+        const SETTLE: Duration = Duration::from_millis(400);
+        let Some((text, at)) = self.selection_settling.clone() else { return };
+        if self.drag_anchor.is_some() || at.elapsed() < SETTLE {
+            self.ctx.request_repaint_after(SETTLE.saturating_sub(at.elapsed()));
+            return;
+        }
+        self.selection_settling = None;
+        if self.doc.as_mut().and_then(|d| d.selection_text()).as_deref() == Some(text.as_str()) {
+            self.emit("selection_done", text);
+        }
+    }
+
     pub fn emit(&mut self, event: &str, arg: String) {
+        if event == "selection" && self.script.as_ref().is_some_and(|s| s.has_hook("selection_done")) {
+            self.selection_settling = Some((arg.clone(), Instant::now()));
+        }
         if self.script.as_ref().is_some_and(|s| s.has_hook(event)) {
             self.with_script(|s| s.emit(event, arg));
         }

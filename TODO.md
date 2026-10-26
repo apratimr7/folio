@@ -39,7 +39,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
   - [ ] Richer hook arguments: `page` as a number; `highlight` as a table `{page, text, color, note}`.
 - [x] **Bugs from the Lua/automation test pass**: all fixed, see `CHANGELOG.md` [Unreleased] and
       `docs/testing/2026-10-20-lua-api-report.md`. Still open from that pass:
-  - [ ] Debounce the `selection` hook (or add a `selection_done` event) for heavy handlers such as AI calls.
+  - [x] Debounce the `selection` hook (or add a `selection_done` event) for heavy handlers such as AI calls.
+        `selection_done` fires once the selection is unchanged for 0.4 s.
   - [x] Recheck `folio.clipboard` by hand. Works on macOS (`y`, `Y`, `Cmd-c`, `folio.clipboard`, export).
 
 ## From macOS testing (2026-10-20)

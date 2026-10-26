@@ -50,7 +50,8 @@ folio.on(event, function(arg) ... end)
 |---|---|
 | `open` | path of the opened document (canonical: symlinks resolved) |
 | `page` | new current page (string, 1-based). The first one fires after the saved position is restored. |
-| `selection` | selected text, after a mouse drag or **each** visual-mode change (debounce heavy work yourself) |
+| `selection` | selected text, after a mouse drag or **each** visual-mode change |
+| `selection_done` | selected text, once the selection has stayed the same for 0.4 s (use this for slow work, e.g. asking a model) |
 | `search` | the query, when a search is confirmed in the prompt or started with `search …` from Lua/remote |
 | `highlight` | text of a new highlight |
 | `quit` | — |

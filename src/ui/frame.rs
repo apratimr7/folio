@@ -33,6 +33,7 @@ impl eframe::App for App {
         }
         self.poll_workers(&ctx);
         self.poll_jobs();
+        self.settle_selection();
         let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
         for req in remote {
             let reply = self.run_remote(&req.line);
