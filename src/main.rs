@@ -107,6 +107,18 @@ fn main() -> Result<()> {
                     file => files.push(PathBuf::from(file)),
                 }
             }
+            // Files that don't exist are reported here; the GUI isn't started for nothing.
+            let given = files.len();
+            files.retain(|f| {
+                let found = f.is_file();
+                if !found {
+                    eprintln!("{}: {}: no such file", config::APP_NAME, f.display());
+                }
+                found
+            });
+            if given > 0 && files.is_empty() {
+                std::process::exit(1);
+            }
             // A running folio takes the files as new tabs, unless `--new` asks for a separate window.
             if !files.is_empty() && !new_instance && hand_off(&files) {
                 return Ok(());
@@ -135,17 +147,16 @@ fn run(files: Vec<PathBuf>) -> Result<()> {
 }
 
 /// Open the files in the running instance, each in a new tab, and bring its window forward. False if there's no
-/// running instance (or it refused), so this process should open them itself.
+/// running instance, so this process should open them itself.
 fn hand_off(files: &[PathBuf]) -> bool {
     let mut commands = Vec::new();
     for f in files {
-        match doc::canonicalize(f) {
-            Ok(p) => commands.push(format!("new_tab {}", p.display())),
-            Err(_) => return false, // let the GUI report the missing file
-        }
+        let p = doc::canonicalize(f).unwrap_or_else(|_| f.clone());
+        commands.push(format!("new_tab {}", p.display()));
     }
     commands.push("focus_window".into());
-    ipc::deliver(&commands).is_ok_and(|replies| replies.iter().all(|r| matches!(r, ipc::Reply::Ok(_))))
+    // Once the running instance has answered, it has the files (and shows any error itself).
+    ipc::deliver(&commands).is_ok()
 }
 
 fn init_config() -> Result<()> {

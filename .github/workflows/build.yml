@@ -1,10 +1,11 @@
 name: build
 
 on:
+  # Docs-only changes skip the build, except the doc pages with tables generated from the code (a test checks them).
   push:
-    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+    paths: ["**", "!**.md", "!docs/**", "!LICENSE", "docs/COMMANDS.md", "docs/CONFIGURATION.md", "docs/SCRIPTING.md"]
   pull_request:
-    paths-ignore: ["**.md", "docs/**", "LICENSE"]
+    paths: ["**", "!**.md", "!docs/**", "!LICENSE", "docs/COMMANDS.md", "docs/CONFIGURATION.md", "docs/SCRIPTING.md"]
   workflow_dispatch:
 
 # A new push to a branch cancels the run still going for the previous one.

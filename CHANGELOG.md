@@ -60,6 +60,8 @@ and a documentation website, plus many smaller fixes.
   pushes skip the build, a new push cancels the previous run, and the actions are on Node 24.
 
 ### Fixed
+- `folio missing.pdf` reports the missing file in the terminal (and exits 1 if nothing is left to open) instead
+  of starting the window for nothing.
 - `folio --remote` waits for each command and exits with status 1 (printing the message) when one fails;
   output such as `lua` results is printed to stdout.
 - `config.toml` warns about values it can't use (theme colors that aren't colors, dims outside 0–1) instead of

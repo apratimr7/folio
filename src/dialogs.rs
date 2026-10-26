@@ -13,8 +13,11 @@ use crossbeam_channel::{Receiver, Sender};
 /// What a chosen path is for.
 #[derive(Clone, Debug, PartialEq)]
 pub enum Purpose {
-    Open { new_tab: bool },
-    ExportHighlights,
+    Open {
+        new_tab: bool,
+    },
+    /// The highlights of the document at this path (the user may switch tabs while the dialog is open).
+    ExportHighlights(PathBuf),
     Screenshot,
 }
 

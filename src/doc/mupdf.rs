@@ -98,6 +98,8 @@ impl MupdfDoc {
         let y = match (self.rotation, top) {
             // Sideways, a destination's top is a horizontal position; land at the page top.
             (90 | 270, _) | (_, None) => 0.0,
+            // Upside down, the content below the destination's top is above it on screen: land a screenful higher.
+            (180, Some(t)) => (self.rotate(page, Rect::new(0.0, t - b.y0, 0.0, t - b.y0)).y0 - 300.0).max(0.0),
             (_, Some(t)) => self.rotate(page, Rect::new(0.0, t - b.y0, 0.0, t - b.y0)).y0,
         };
         Some(DocPos { page, y })

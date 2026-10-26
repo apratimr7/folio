@@ -116,11 +116,12 @@ impl App {
         }
         match req.target {
             Target::Lazy => {
-                if self.doc.is_none() && self.active_pending.as_deref() == Some(s.path.as_path()) {
+                // Restored tabs hold the path as it was saved, which can differ from the canonical one.
+                if self.doc.is_none() && self.active_pending.as_deref() == Some(req.path.as_path()) {
                     self.place_in_current_tab(s);
                 } else {
                     // Not shown any more: keep it loaded in its tab, if that's still open.
-                    if let Some(i) = self.tabs.iter().position(|t| matches!(t, Tab::Lazy(p) if *p == s.path)) {
+                    if let Some(i) = self.tabs.iter().position(|t| matches!(t, Tab::Lazy(p) if *p == req.path)) {
                         self.tabs[i] = Tab::Loaded(Box::new(s));
                     }
                     return;
@@ -135,7 +136,8 @@ impl App {
                     }
                     return;
                 }
-                if req.target == Target::NewTab && self.doc.is_some() {
+                // A new tab also when the active one is a restored tab still waiting for its document.
+                if req.target == Target::NewTab && (self.doc.is_some() || self.active_pending.is_some()) {
                     self.insert_tab_after_active();
                 } else if let Some(d) = &mut self.doc {
                     d.save_state();

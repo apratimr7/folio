@@ -353,9 +353,13 @@ impl Session {
     /// are recomputed from their characters, since they're stored in view coordinates.
     pub fn rotate(&mut self, degrees: i32) -> Result<()> {
         let page = self.view.current_page();
-        self.opts.rotation = (self.opts.rotation as i32 + degrees).rem_euclid(360) as u16;
+        let before = self.opts.rotation;
+        self.opts.rotation = (before as i32 + degrees).rem_euclid(360) as u16;
+        if let Err(e) = self.reload() {
+            self.opts.rotation = before;
+            return Err(e);
+        }
         self.state.rotation = self.opts.rotation;
-        self.reload()?;
         let mut highlights = std::mem::take(&mut self.state.highlights);
         for h in &mut highlights {
             let t = self.page_text(h.page);

@@ -8,7 +8,7 @@ use std::path::{Path, PathBuf};
 
 use eframe::egui;
 
-use crate::app::{App, Mode};
+use crate::app::{App, Mode, PromptKind};
 use crate::config;
 use crate::session::Session;
 use crate::ui::picker::{PickData, PickItem, Picker, PickerKind};
@@ -178,6 +178,10 @@ impl App {
     pub(crate) fn after_switch(&mut self) {
         self.mode = Mode::Normal;
         self.picker = None;
+        // Prompts about the previous document (a note, a search, a page) would act on this one.
+        if self.prompt.as_ref().is_some_and(|p| !matches!(p.kind, PromptKind::Password(_) | PromptKind::Lua(_))) {
+            self.prompt = None;
+        }
         self.disp.reset();
         let title = match &self.doc {
             Some(d) => format!("{} — {}", d.title, config::APP_NAME),
@@ -243,11 +247,13 @@ impl App {
 
     /// Recreate the last session's tabs; only the active one is opened now.
     pub fn restore_tabs(&mut self) -> bool {
+        let saved_active = self.global.tabs.get(self.global.active_tab).cloned();
         let paths: Vec<PathBuf> = self.global.tabs.iter().filter(|p| p.exists()).cloned().collect();
         if paths.is_empty() {
             return false;
         }
-        let active = self.global.active_tab.min(paths.len() - 1);
+        // The saved active tab, found by path (tabs before it may have gone missing).
+        let active = paths.iter().position(|p| Some(p) == saved_active.as_ref()).unwrap_or(0);
         self.tabs = paths.into_iter().map(Tab::Lazy).collect();
         self.activate(active);
         self.doc.is_some()

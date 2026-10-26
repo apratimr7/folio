@@ -21,6 +21,25 @@ use crate::text::Response as TextResponse;
 const TEXTURE_BUDGET: usize = 320 << 20;
 
 impl eframe::App for App {
+    /// Runs before every frame and also while the window is hidden (minimized, covered, on another Space), so
+    /// remote commands, files from Finder, dialog results and documents read in the background are handled then too.
+    fn logic(&mut self, _ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        self.poll_jobs();
+        self.settle_selection();
+        self.poll_dialogs();
+        self.poll_loader();
+        let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
+        for req in remote {
+            let reply = self.run_remote(&req.line);
+            let _ = req.reply.send(reply);
+        }
+        for path in crate::open_events::take() {
+            self.open_in_new_tab(&path);
+            self.ctx.send_viewport_cmd(egui::ViewportCommand::Minimized(false));
+            self.ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+        }
+    }
+
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let ctx = ui.ctx().clone();
         let now = Instant::now();
@@ -32,19 +51,7 @@ impl eframe::App for App {
             self.emit_quit();
         }
         self.poll_workers(&ctx);
-        self.poll_jobs();
-        self.poll_dialogs();
-        self.poll_loader();
-        self.settle_selection();
-        let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
-        for req in remote {
-            let reply = self.run_remote(&req.line);
-            let _ = req.reply.send(reply);
-        }
         // Files dropped onto the window open in new tabs.
-        for path in crate::open_events::take() {
-            self.open_in_new_tab(&path);
-        }
         let dropped: Vec<_> = ctx.input(|i| {
             i.raw.dropped_files.iter().map(|f| f.path().to_path_buf()).filter(|p| !p.as_os_str().is_empty()).collect::<Vec<_>>()
         });

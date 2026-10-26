@@ -739,7 +739,9 @@ impl App {
     pub fn run_remote(&mut self, line: &str) -> crate::ipc::Reply {
         let start = Instant::now();
         self.remote_out = Some(String::new());
-        if commands::split(line).0 == "lua" {
+        // `;` separates commands, except in Lua code and in paths.
+        let whole = ["lua", "open_file", "new_tab", "export_highlights", "screenshot", "open_url"];
+        if whole.contains(&commands::split(line).0) {
             self.run_line(line, None);
         } else {
             for cmd in line.split(';') {
@@ -1274,7 +1276,8 @@ impl App {
             }
             "save_highlights" => {
                 let name = format!("{}.md", d.path.file_stem().map(|s| s.to_string_lossy()).unwrap_or_default());
-                self.save_dialog(&name, ("Markdown", "md"), crate::dialogs::Purpose::ExportHighlights);
+                let source = d.path.clone();
+                self.save_dialog(&name, ("Markdown", "md"), crate::dialogs::Purpose::ExportHighlights(source));
             }
             "export_highlights" => {
                 let md = export_markdown(d);
@@ -1356,7 +1359,7 @@ impl App {
             match purpose {
                 Purpose::Open { new_tab: true } => self.open_in_new_tab(&path),
                 Purpose::Open { new_tab: false } => self.open(&path),
-                Purpose::ExportHighlights => self.write_highlights(&path),
+                Purpose::ExportHighlights(source) => self.write_highlights_of(&source, &path),
                 Purpose::Screenshot => {
                     let p = path.to_string_lossy().to_string();
                     self.run_builtin("screenshot", &p, None);
@@ -1366,8 +1369,21 @@ impl App {
     }
 
     fn write_highlights(&mut self, path: &Path) {
-        let Some(d) = &self.doc else { return };
-        match std::fs::write(path, export_markdown(d)) {
+        if let Some(source) = self.doc.as_ref().map(|d| d.path.clone()) {
+            self.write_highlights_of(&source, path);
+        }
+    }
+
+    /// Write the highlights of the open document at `source` (active or in a background tab) to `path`.
+    fn write_highlights_of(&mut self, source: &Path, path: &Path) {
+        let mut md = None;
+        self.for_each_session(|d| {
+            if d.path == source {
+                md = Some(export_markdown(d));
+            }
+        });
+        let Some(md) = md else { return self.warn(format!("{} isn't open any more", tilde(source))) };
+        match std::fs::write(path, md) {
             Ok(()) => self.notify(format!("Highlights saved to {}", tilde(path))),
             Err(e) => self.warn(format!("Couldn't write {}: {e}", tilde(path))),
         }
@@ -2466,26 +2482,55 @@ fn open_external(target: &str) {
 }
 
 /// Show a file selected in the desktop's file manager (Finder, Explorer, or the freedesktop `FileManager1`
-/// service; plain `xdg-open` of its folder where that's missing).
+/// service; plain `xdg-open` of its folder where that's missing). Runs on a thread: D-Bus can be slow to answer.
 fn reveal_in_file_manager(path: &Path) {
     use std::process::Command;
-    let result = if cfg!(target_os = "macos") {
-        Command::new("open").arg("-R").arg(path).spawn().map(drop)
-    } else if cfg!(windows) {
-        Command::new("explorer").arg(format!("/select,{}", path.display())).spawn().map(drop)
-    } else {
-        let shown = Command::new("dbus-send")
-            .args(["--session", "--print-reply", "--dest=org.freedesktop.FileManager1", "--type=method_call"])
-            .args(["/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowItems"])
-            .arg(format!("array:string:file://{}", path.display()))
-            .arg("string:")
-            .output()
-            .is_ok_and(|o| o.status.success());
-        if shown { Ok(()) } else { Command::new("xdg-open").arg(path.parent().unwrap_or(path)).spawn().map(drop) }
+    let path = path.to_path_buf();
+    let reveal = move || {
+        let result = if cfg!(target_os = "macos") {
+            Command::new("open").arg("-R").arg(&path).status().map(drop)
+        } else if cfg!(windows) {
+            explorer_select(&path)
+        } else {
+            let shown = Command::new("dbus-send")
+                .args(["--session", "--print-reply", "--reply-timeout=2000", "--dest=org.freedesktop.FileManager1"])
+                .args(["--type=method_call", "/org/freedesktop/FileManager1", "org.freedesktop.FileManager1.ShowItems"])
+                .arg(format!("array:string:{}", file_uri(&path)))
+                .arg("string:")
+                .output()
+                .is_ok_and(|o| o.status.success());
+            if shown { Ok(()) } else { Command::new("xdg-open").arg(path.parent().unwrap_or(&path)).status().map(drop) }
+        };
+        if let Err(e) = result {
+            eprintln!("folio: couldn't show {} in the file manager: {e}", path.display());
+        }
     };
-    if let Err(e) = result {
-        eprintln!("folio: couldn't show {} in the file manager: {e}", path.display());
+    let _ = std::thread::Builder::new().name("reveal".into()).spawn(reveal);
+}
+
+/// `explorer /select,PATH`, passed as written: explorer doesn't parse the quoting Rust would add for spaces.
+#[cfg(windows)]
+fn explorer_select(path: &Path) -> std::io::Result<()> {
+    use std::os::windows::process::CommandExt;
+    std::process::Command::new("explorer").raw_arg(format!("/select,\"{}\"", path.display())).spawn().map(drop)
+}
+
+#[cfg(not(windows))]
+fn explorer_select(_path: &Path) -> std::io::Result<()> {
+    Ok(())
+}
+
+/// A `file://` URI with the path percent-encoded (spaces, `#`, `%` and non-ASCII bytes).
+fn file_uri(path: &Path) -> String {
+    let mut out = String::from("file://");
+    for b in path.to_string_lossy().bytes() {
+        if b.is_ascii_alphanumeric() || b"/-._~".contains(&b) {
+            out.push(b as char);
+        } else {
+            out += &format!("%{b:02X}");
+        }
     }
+    out
 }
 
 pub fn shellexpand(s: &str) -> PathBuf {
@@ -2535,3 +2580,20 @@ fn close_on_signals(ctx: &egui::Context) {
 
 #[cfg(not(unix))]
 fn close_on_signals(_ctx: &egui::Context) {}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn file_uris_are_percent_encoded() {
+        assert_eq!(file_uri(Path::new("/papers/a b#1%.pdf")), "file:///papers/a%20b%231%25.pdf");
+        assert_eq!(file_uri(Path::new("/p/é.pdf")), "file:///p/%C3%A9.pdf");
+    }
+
+    #[test]
+    fn label_jumps() {
+        assert!(is_label_jump("p12") && is_label_jump("pxiv"));
+        assert!(!is_label_jump("p") && !is_label_jump("prev_page") && !is_label_jump("p1x"));
+    }
+}
