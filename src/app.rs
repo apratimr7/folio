@@ -89,6 +89,8 @@ pub struct App {
     /// Nesting depth of `process_effects` (scripts calling commands calling scripts).
     pub effect_depth: u32,
     pub quit_emitted: bool,
+    /// Collects command output (e.g. `lua` results) while a remote command runs, for the client to print.
+    pub remote_out: Option<String>,
 }
 
 pub fn notify_into(toasts: &mut Vec<Toast>, text: impl Into<String>, level: Level) {
@@ -221,6 +223,7 @@ impl App {
             ipc: None,
             effect_depth: 0,
             quit_emitted: false,
+            remote_out: None,
         };
         let wake = app.ctx.clone();
         match crate::ipc::Server::start(move || wake.request_repaint()) {
@@ -663,9 +666,33 @@ impl App {
         self.run_builtin(name, args, count);
     }
 
+    /// Run a command line from `--remote`. `;` separates commands, except inside Lua code. The reply carries
+    /// the output, or the warnings and errors the commands raised (they still show as toasts too).
+    pub fn run_remote(&mut self, line: &str) -> crate::ipc::Reply {
+        let start = Instant::now();
+        self.remote_out = Some(String::new());
+        if commands::split(line).0 == "lua" {
+            self.run_line(line, None);
+        } else {
+            for cmd in line.split(';') {
+                self.run_line(cmd, None);
+            }
+        }
+        let out = self.remote_out.take().unwrap_or_default();
+        let errors: Vec<&str> =
+            self.toasts.iter().filter(|t| t.level != Level::Info && t.born >= start).map(|t| t.text.as_str()).collect();
+        if errors.is_empty() { crate::ipc::Reply::Ok(out) } else { crate::ipc::Reply::Err(errors.join("; ")) }
+    }
+
     fn need_doc(&mut self) -> bool {
         if self.doc.is_none() {
-            self.notify("No document open — press o to open one");
+            let msg = "No document open — press o to open one";
+            // A remote caller needs to know the command did nothing.
+            if self.remote_out.is_some() {
+                self.warn(msg)
+            } else {
+                self.notify(msg)
+            }
             return false;
         }
         true
@@ -742,7 +769,10 @@ impl App {
                 let res = s.run_code(args);
                 self.process_effects();
                 match res {
-                    Ok(out) if !out.is_empty() && out != "nil" => self.notify(out),
+                    Ok(out) if !out.is_empty() && out != "nil" => match &mut self.remote_out {
+                        Some(buf) => buf.push_str(&out),
+                        None => self.notify(out),
+                    },
                     Ok(_) => {}
                     Err(e) => notify_into(&mut self.toasts, e, Level::Error),
                 }

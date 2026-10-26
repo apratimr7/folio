@@ -84,7 +84,8 @@ Low:
 - [x] 16. Status bar shows empty `()` for pages with an empty label.
 - [x] 17. `USAGE.md` socket path is wrong on macOS (`$TMPDIR`); a socket path over 104 bytes silently disables
       remote control (stderr only). Doc fixed, bind failures show a toast.
-- [ ] 18. `--remote` exits 0 on unknown commands and errors (see `--remote` replies below).
+- [x] 18. `--remote` exits 0 on unknown commands and errors. Now it waits for each command, prints output
+      (`lua` results) and exits 1 with the message on failure.
 - [ ] Ctrl/Cmd + wheel zoom is very sensitive with synthetic wheel events (10 events: 139% → 1200%). Pinch zoom
       on the trackpad feels fine; check with a real mouse wheel.
 - [ ] Cosmetic: `folio FILE --version` ignores flags after a file. (The `Rgba::rgba` clippy warning is fixed.)

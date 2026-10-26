@@ -5,6 +5,10 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 
 ## [Unreleased]
 
+### Fixed
+- `folio --remote` waits for each command and exits with status 1 (printing the message) when one fails;
+  output such as `lua` results is printed to stdout.
+
 ### Changed
 - CI: the Rust toolchain is pinned (1.95), tests run in release mode so MuPDF compiles once per job, docs-only
   pushes skip the build, a new push cancels the previous run, and the actions are on Node 24.

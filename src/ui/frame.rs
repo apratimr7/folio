@@ -33,16 +33,10 @@ impl eframe::App for App {
         }
         self.poll_workers(&ctx);
         self.poll_jobs();
-        let remote: Vec<String> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
-        for line in remote {
-            // `;` separates commands, except inside Lua code.
-            if crate::commands::split(&line).0 == "lua" {
-                self.run_line(&line, None);
-            } else {
-                for cmd in line.split(';') {
-                    self.run_line(cmd, None);
-                }
-            }
+        let remote: Vec<crate::ipc::Request> = self.ipc.as_ref().map(|s| s.rx.try_iter().collect()).unwrap_or_default();
+        for req in remote {
+            let reply = self.run_remote(&req.line);
+            let _ = req.reply.send(reply);
         }
         // A file dropped onto the window opens like `o` would.
         if let Some(path) = ctx.input(|i| i.raw.dropped_files.first().map(|f| f.path().to_path_buf())) {

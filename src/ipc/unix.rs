@@ -5,11 +5,12 @@ use std::io::{BufRead, BufReader, Write};
 use std::os::unix::fs::PermissionsExt;
 use std::os::unix::net::{UnixListener, UnixStream};
 use std::path::PathBuf;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 
 use anyhow::{Context, Result};
 use crossbeam_channel::{Receiver, Sender};
 
+use super::{Reply, Request};
 use crate::config::APP_NAME;
 
 pub fn socket_dir() -> PathBuf {
@@ -22,7 +23,7 @@ pub fn default_socket() -> PathBuf {
 }
 
 pub struct Server {
-    pub rx: Receiver<String>,
+    pub rx: Receiver<Request>,
     path: PathBuf,
 }
 
@@ -91,7 +92,7 @@ fn newest_live_socket() -> Option<UnixStream> {
     socks.into_iter().find_map(|(_, p)| UnixStream::connect(p).ok())
 }
 
-fn serve(listener: UnixListener, tx: Sender<String>, wake: impl Fn()) {
+fn serve(listener: UnixListener, tx: Sender<Request>, wake: impl Fn()) {
     for stream in listener.incoming().flatten() {
         let mut writer = stream.try_clone().ok();
         for line in BufReader::new(stream).lines().map_while(|l| l.ok()) {
@@ -99,12 +100,15 @@ fn serve(listener: UnixListener, tx: Sender<String>, wake: impl Fn()) {
             if line.is_empty() {
                 continue;
             }
-            if tx.send(line).is_err() {
+            let (reply_tx, reply_rx) = crossbeam_channel::bounded(1);
+            if tx.send(Request { line, reply: reply_tx }).is_err() {
                 return;
             }
             wake();
+            // The UI thread runs the command on its next frame; a modal dialog can hold it up.
+            let reply = reply_rx.recv_timeout(Duration::from_secs(60)).unwrap_or(Reply::Err("no reply (folio is busy)".into()));
             if let Some(w) = writer.as_mut() {
-                let _ = w.write_all(b"ok\n");
+                let _ = w.write_all(reply.encode().as_bytes());
             }
         }
     }
@@ -127,8 +131,21 @@ pub fn send(commands: &[String]) -> Result<()> {
         stream.write_all(b"\n")?;
     }
     stream.shutdown(std::net::Shutdown::Write)?;
-    let mut acks = String::new();
-    BufReader::new(stream).read_line(&mut acks)?;
+    // One reply per command: print output, report errors, and fail if any command did.
+    let mut failed = 0;
+    for line in BufReader::new(stream).lines() {
+        match Reply::decode(&line?) {
+            Reply::Ok(out) if !out.is_empty() => println!("{out}"),
+            Reply::Ok(_) => {}
+            Reply::Err(e) => {
+                eprintln!("{APP_NAME}: {e}");
+                failed += 1;
+            }
+        }
+    }
+    if failed > 0 {
+        std::process::exit(1);
+    }
     Ok(())
 }
 

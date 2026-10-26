@@ -163,6 +163,10 @@ folio --remote 'search Hawking radiation' 'center_line'
 folio --remote 'toggle_dark; zoom 140'
 ```
 
+Each command waits until folio has run it. `--remote` exits with status 1 and prints the message when a command
+fails (an unknown command, a bad argument, a Lua error, no document open), so scripts can check `$?`. Output
+goes to stdout: `folio --remote 'lua return folio.state().page'` prints the current page.
+
 This talks to the most recently started instance through `folio.sock` in `$XDG_RUNTIME_DIR`, or in `$TMPDIR`
 when `XDG_RUNTIME_DIR` isn't set (the usual case on macOS). If that instance is gone, the newest running one is
 used. Set `FOLIO_SOCKET` to target a specific one, e.g. `FOLIO_SOCKET=$TMPDIR/folio-<pid>.sock`.

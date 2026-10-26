@@ -6,7 +6,7 @@ use crossbeam_channel::Receiver;
 
 #[allow(dead_code)] // never constructed until the named-pipe transport exists
 pub struct Server {
-    pub rx: Receiver<String>,
+    pub rx: Receiver<super::Request>,
 }
 
 impl Server {
