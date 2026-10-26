@@ -225,21 +225,29 @@ impl App {
             return;
         }
         for chord in keys {
-            // Overlays get first pick.
-            if self.doc.as_ref().is_some_and(|d| d.hints.is_some()) {
-                self.hint_key(&chord);
-                continue;
-            }
-            if self.doc.as_ref().is_some_and(|d| d.peek.is_some()) && self.peek_key(&chord) {
-                continue;
-            }
-            if self.picker.is_some() || self.prompt.is_some() {
+            if !self.dispatch_chord(chord) {
                 break;
             }
-            self.feed_key(chord);
         }
         // Don't let the keys that opened a text field also type into it.
         strip_key_events(ctx);
+    }
+
+    /// One key, typed or from `feed_keys`: hints and peek get first pick, then the key map. False once a picker or
+    /// prompt has opened (the remaining keys belong to its text field).
+    pub fn dispatch_chord(&mut self, chord: Chord) -> bool {
+        if self.doc.as_ref().is_some_and(|d| d.hints.is_some()) {
+            self.hint_key(&chord);
+            return true;
+        }
+        if self.doc.as_ref().is_some_and(|d| d.peek.is_some()) && self.peek_key(&chord) {
+            return true;
+        }
+        if self.picker.is_some() || self.prompt.is_some() {
+            return false;
+        }
+        self.feed_key(chord);
+        true
     }
 
     fn hint_key(&mut self, chord: &Chord) {

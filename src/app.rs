@@ -933,13 +933,9 @@ impl App {
                 match keymap::parse_seq(args) {
                     Ok(chords) => {
                         for chord in chords {
-                            if self.doc.as_ref().is_some_and(|d| d.hints.is_some()) {
-                                if let Some(c) = chord.as_char() {
-                                    self.hint_input(c);
-                                }
-                                continue;
+                            if !self.dispatch_chord(chord) {
+                                break;
                             }
-                            self.feed_key(chord);
                         }
                     }
                     Err(e) => self.warn(format!("feed_keys: {e}")),
@@ -1826,7 +1822,7 @@ impl App {
             })
             .collect();
         if items.is_empty() {
-            return self.notify("No highlights yet (v to select, H to highlight)");
+            return self.notify("No highlights yet (select with v, then H and a color key)");
         }
         self.picker = Some(Picker::new(PickerKind::Highlights, "Highlights  ·  Ctrl-E edits  ·  Ctrl-D deletes", items));
     }
