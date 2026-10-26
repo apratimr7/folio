@@ -14,7 +14,8 @@ Short-term work and known issues. Longer-term direction is in [ROADMAP.md](ROADM
       positions and char offsets. Re-anchor them by searching for their text near the old place.
 - [ ] Selections can't span pages (visual mode stays on the page where it started).
 - [ ] Smart references are heuristic. Known gaps: author–year citations (`Smith et al. 2020`), equation numbers
-      that aren't at the end of their text line, two-column layouts where poppler merges lines from both columns.
+      that aren't at the end of their text line, two-column layouts (MuPDF keeps the columns apart; its block structure could
+      help further, see MuPDF follow-ups).
 - [ ] Bare equation references like `(2.8)` are only detected with a dot (to avoid noise like `(1)`).
 - [x] Page rotation: the PDF's own `/Rotate` is honored by MuPDF; `rotate` (`>`/`<`) turns the view, per document.
 - [ ] Huge documents: page sizes are read up front (fine for thousands of pages; could be lazy).
@@ -259,12 +260,11 @@ starting):
 - [ ] Two-page / book mode, and a horizontal-scroll mode for slides.
 - [ ] Presentation mode (one page, fit page, no chrome).
 - [ ] SyncTeX: forward search via `--remote 'synctex file.tex:line'` and inverse search to an editor command.
-- [ ] Cross-page and column-aware selection (use poppler's text attributes for column detection).
+- [ ] Cross-page and column-aware selection (MuPDF's reading order already follows columns).
 - [ ] Highlight editing: change color, edit note, delete under cursor.
 - [ ] Search options: regex, whole word, search within the current section.
 - [ ] Persistent search history and command history.
 - [ ] Portals (sioyek-style): link a place in the text to another (e.g. a figure) and keep it in a side view.
-- [ ] Export highlights into the PDF as real annotations (poppler supports writing annotations).
 - [ ] Thumbnails overview grid (`gt`).
 - [ ] Config hot-reload on file change.
 - [ ] `folio --remote` replies (query state, return JSON) for richer editor/agent integration.
