@@ -6,54 +6,56 @@ and versions follow [Semantic Versioning](https://semver.org/) (pre-1.0: minor v
 ## [Unreleased]
 
 ### Added
-- **A documentation website** built with mdBook from `docs/` (Getting started with screenshots, FAQ, the guides and
-  references, and API docs for contributors), published to GitHub Pages. The command, setting and Lua API tables are
-  generated from the code (`folio --update-docs`, `--list-config`, `--list-lua`) and a test keeps them in sync.
-- **Selections across pages.** Visual-mode motions (`w`, `j`, `l`, `)`…) continue onto the next or previous page,
-  mouse drags can cross pages, and highlighting such a selection highlights it on every page.
-- **Editing highlights.** `gH` labels the highlights on screen; picking one (or right-clicking a highlight, or
-  `Ctrl-e` in the `gh` list) opens a menu to edit its note, copy it, delete it or change its color. Commands
-  `highlight_color N COLOR`, `highlight_note N TEXT` and `delete_highlight N` do the same from Lua and `--remote`.
-- **Opening from the file manager.** On macOS, double-clicking a PDF in Finder, *Open With → folio* and
-  `open -a folio paper.pdf` now open the file (as a new tab when folio is running), so folio can be the default PDF
-  viewer. The Linux `.desktop` file takes several files and has an icon.
-- **An app icon** (macOS bundle, Linux package and the window).
 - **Tabs.** Several documents in one window: `ot`/`Ctrl-t` opens one in a new tab, `gt`/`gT` (`Ctrl-Tab`) switch,
   `Alt-1`…`Alt-9` jump, `gb` lists them, `Ctrl-w` closes, `Ctrl-Shift-t` reopens. `Shift-Enter` in the file picker
   and recent list opens in a new tab, dropped files open in new tabs, and opening a document that's already open
   switches to its tab. The tab bar shows with two or more tabs (`tab_bar`), and the last session's tabs come back
   on start (`restore_tabs`; background tabs load when first shown). `folio.state()` has `tab` and `tab_count`.
+- **Opening from the file manager.** On macOS, double-clicking a PDF in Finder, *Open With → folio* and
+  `open -a folio paper.pdf` now open the file (as a new tab when folio is running), so folio can be the default PDF
+  viewer. The Linux `.desktop` file takes several files and has an icon.
 - `folio paper.pdf` while folio is running opens the paper as a new tab in that window (Linux, macOS);
   `folio --new paper.pdf` starts a separate window. Several files on the command line open as tabs.
 - **The system's file dialog** for opening documents: `oo` (`open_dialog`). `o` is now a key prefix: `oo` dialog,
   `of` keyboard file picker (what `o` used to open), `or` recent documents (`O` still works too).
 - **A key menu**: after a key prefix (`o`, `g`, `z`…) a small panel lists the keys that can follow and what they do.
   Prefixes that aren't commands themselves now wait for the next key instead of timing out.
-- `gE` (`save_highlights`) saves highlights and notes to a Markdown file; `export_highlights PATH` writes one
-  directly, and `screenshot` without a path asks where to save.
-- `feed_keys KEYS` acts as if keys were typed (vim notation), for scripts, `--remote` and tests.
-- Lua hook `selection_done`: the selected text once the selection has settled (0.4 s), for slow handlers.
-- Settings `ruler_dim` and `hint_dim` set how dark the reading ruler and the `v` row hints dim the page
-  (`0` turns the dimming off); also `folio.set`.
-- Documents without a title in their metadata (most arXiv preprints) are named after the largest text at the
-  top of the first page, in the window title, status bar and recent list, instead of `1409.3575v4.pdf`.
-- `:p42` goes to the page printed 42 (its label); `:42` stays the physical page.
-- `alternate_file` (`Ctrl-6`, like vim's `Ctrl-^`) switches to the previously opened document.
-- `reveal_file` shows the document in the file manager; `copy_path` copies its path.
-- The recent list removes an entry with `Ctrl-d` and says how many missing files it hides.
+- **Editing highlights.** `gH` labels the highlights on screen; picking one (or right-clicking a highlight, or
+  `Ctrl-e` in the `gh` list) opens a menu to edit its note, copy it, delete it or change its color. Commands
+  `highlight_color N COLOR`, `highlight_note N TEXT` and `delete_highlight N` do the same from Lua and `--remote`.
+- **Selections across pages.** Visual-mode motions (`w`, `j`, `l`, `)`…) continue onto the next or previous page,
+  mouse drags can cross pages, and highlighting such a selection highlights it on every page.
+- **A documentation website** built with mdBook from `docs/` (Getting started with screenshots, FAQ, the guides and
+  references, and API docs for contributors), published to GitHub Pages. The command, setting and Lua API tables are
+  generated from the code (`folio --update-docs`, `--list-config`, `--list-lua`) and a test keeps them in sync.
+- **An app icon** (macOS bundle, Linux package and the window).
+- Password-protected PDFs ask for their password (masked, never saved); `folio.open(path, password)` in Lua.
 - `rotate` (`>` clockwise, `<` back) turns the pages by 90°; the rotation is saved per document, and text,
   search, links and highlights follow it.
-- Password-protected PDFs ask for their password (masked, never saved); `folio.open(path, password)` in Lua.
-
-### Fixed
-- `config.toml` warns about values it can't use (theme colors that aren't colors, dims outside 0–1) instead of
-  ignoring them silently.
-- `folio --remote` waits for each command and exits with status 1 (printing the message) when one fails;
-  output such as `lua` results is printed to stdout.
+- The recent list removes an entry with `Ctrl-d` and says how many missing files it hides.
+- `reveal_file` shows the document in the file manager; `copy_path` copies its path.
+- `alternate_file` (`Ctrl-6`, like vim's `Ctrl-^`) switches to the previously opened document.
+- `:p42` goes to the page printed 42 (its label); `:42` stays the physical page.
+- Documents without a title in their metadata (most arXiv preprints) are named after the largest text at the
+  top of the first page, in the window title, status bar and recent list, instead of `1409.3575v4.pdf`.
+- Settings `ruler_dim` and `hint_dim` set how dark the reading ruler and the `v` row hints dim the page
+  (`0` turns the dimming off); also `folio.set`.
+- Lua hook `selection_done`: the selected text once the selection has settled (0.4 s), for slow handlers.
+- `feed_keys KEYS` acts as if keys were typed (vim notation), for scripts, `--remote` and tests.
+- `gE` (`save_highlights`) saves highlights and notes to a Markdown file; `export_highlights PATH` writes one
+  directly, and `screenshot` without a path asks where to save.
 
 ### Changed
+- `o` is now a key prefix (`oo` system dialog, `of` keyboard file picker, `or` recent, `ot` new tab); the
+  keyboard file picker that `o` used to open is `of`. Key prefixes such as `g` wait for the next key.
 - CI: the Rust toolchain is pinned (1.95), tests run in release mode so MuPDF compiles once per job, docs-only
   pushes skip the build, a new push cancels the previous run, and the actions are on Node 24.
+
+### Fixed
+- `folio --remote` waits for each command and exits with status 1 (printing the message) when one fails;
+  output such as `lua` results is printed to stdout.
+- `config.toml` warns about values it can't use (theme colors that aren't colors, dims outside 0–1) instead of
+  ignoring them silently.
 
 ## [0.2.0] — 2026-10-21
 
